@@ -16,7 +16,7 @@ test:
 # a fast CPU-only toy training run + report (no GPU)
 smoke:
     {{uv}} run ga train +exp=arithmetic_catapult model=tiny_transformer schedule=baseline_cosine seed=0 \
-        train.max_steps=60 train.eval_every=30 train.eval_n=32 train.log_every=20 data.n_train=800
+        train.max_steps=300 train.eval_every=150 train.eval_n=48 train.log_every=150 data.n_train=2000
     {{uv}} run ga analyze --experiment arithmetic_catapult --write reports/runs/smoke_arithmetic.md
 
 lint:

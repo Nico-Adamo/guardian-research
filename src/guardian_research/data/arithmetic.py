@@ -69,7 +69,12 @@ class ArithmeticConfig:
     n_train: int = 4000
     n_easy_eval: int = 256
     n_hard_eval: int = 256
-    carry_heavy_frac: float = 0.5  # fraction of the hard split that is carry-heavy
+    # The hard split is two distinct kinds of "hard" (per the catapult essay):
+    #   * carry-chain-heavy examples at IN-DISTRIBUTION lengths (tests whether
+    #     the model truly carries, not whether it memorized); and
+    #   * out-of-distribution (longer) lengths (tests length extrapolation).
+    hard_ood_frac: float = 0.5  # share of hard split that is OOD-length
+    carry_heavy_frac: float = 0.5  # within the OOD portion, share that is carry-heavy
     reverse_answer: bool = True  # least-significant digit first eases learning
     seed: int = 0
     # Derived at build time; not user-set.
@@ -161,21 +166,27 @@ def build_splits(cfg: ArithmeticConfig) -> dict[str, object]:
         if p not in train_set
     ][: cfg.n_easy_eval]
 
-    hard_pairs = _gen_examples(
-        cfg,
-        cfg.n_hard_eval,
-        cfg.hard_min_digits,
-        cfg.hard_max_digits,
-        rng,
-        carry_heavy_frac=cfg.carry_heavy_frac,
+    # Hard split: OOD-length examples + carry-heavy examples at training lengths.
+    n_ood = int(round(cfg.n_hard_eval * cfg.hard_ood_frac))
+    n_carry = cfg.n_hard_eval - n_ood
+    hard_ood_pairs = _gen_examples(
+        cfg, n_ood, cfg.hard_min_digits, cfg.hard_max_digits, rng, carry_heavy_frac=cfg.carry_heavy_frac
     )
+    hard_carry_pairs = [
+        p
+        for p in _gen_examples(
+            cfg, n_carry * 2, cfg.train_min_digits, cfg.train_max_digits, rng, carry_heavy_frac=1.0
+        )
+        if p not in train_set
+    ][:n_carry]
+    hard_pairs = hard_ood_pairs + hard_carry_pairs
 
-    # Compute a max sequence length that fits the longest (hard) example + bos/eos.
     def _len(pair: tuple[int, int]) -> int:
         prompt, answer = make_example(pair[0], pair[1], cfg.op, cfg.reverse_answer)
         return len(prompt) + len(answer) + 2  # bos + eos
 
-    max_len = max(_len(p) for p in (train_pairs + easy_pairs + hard_pairs))
+    all_pairs = train_pairs + easy_pairs + hard_pairs
+    max_len = max(_len(p) for p in all_pairs)
     cfg.max_len = max_len
 
     return {
@@ -184,10 +195,14 @@ def build_splits(cfg: ArithmeticConfig) -> dict[str, object]:
         "train": ArithmeticDataset(train_pairs, cfg, tok),
         "easy_eval": ArithmeticDataset(easy_pairs, cfg, tok),
         "hard_eval": ArithmeticDataset(hard_pairs, cfg, tok),
+        "hard_ood_eval": ArithmeticDataset(hard_ood_pairs, cfg, tok) if hard_ood_pairs else None,
+        "hard_carry_eval": ArithmeticDataset(hard_carry_pairs, cfg, tok) if hard_carry_pairs else None,
         "meta": {
             "n_train": len(train_pairs),
             "n_easy_eval": len(easy_pairs),
             "n_hard_eval": len(hard_pairs),
+            "n_hard_ood": len(hard_ood_pairs),
+            "n_hard_carry": len(hard_carry_pairs),
             "max_len": max_len,
             "vocab_size": tok.vocab_size,
         },

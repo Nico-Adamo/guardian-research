@@ -7,21 +7,23 @@ runner: arithmetic
 data:
   op: "+"
   train_min_digits: 1
-  train_max_digits: 3
-  hard_min_digits: 4 # strictly longer than train -> out of distribution
-  hard_max_digits: 5
-  n_train: 3000
+  train_max_digits: 2
+  hard_min_digits: 3 # strictly longer than train -> out of distribution
+  hard_max_digits: 4
+  n_train: 4000
   n_easy_eval: 128
   n_hard_eval: 128
+  hard_ood_frac: 0.5 # half OOD-length, half carry-heavy at training lengths
   carry_heavy_frac: 0.5
   reverse_answer: true
 
 train:
-  max_steps: 500
+  max_steps: 1200
   batch_size: 256
-  eval_every: 125
-  eval_n: 64
+  eval_every: 300
+  eval_n: 96
   eval_batches: 2
-  lr: 1.0e-3
+  log_every: 150
+  lr: 3.0e-3
   weight_decay: 0.05
   checkpoint: true

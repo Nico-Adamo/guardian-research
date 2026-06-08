@@ -98,6 +98,8 @@ def run(cfg: dict[str, Any]) -> Path:
     tok = splits["tokenizer"]
     max_len = splits["max_len"]
     train_ds, easy_ds, hard_ds = splits["train"], splits["easy_eval"], splits["hard_eval"]
+    hard_ood_ds = splits.get("hard_ood_eval")
+    hard_carry_ds = splits.get("hard_carry_eval")
 
     batch_size = int(tr.get("batch_size", 256))
     train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True, drop_last=True)
@@ -195,26 +197,20 @@ def run(cfg: dict[str, Any]) -> Path:
                     easy_acc = _eval_accuracy(model, easy_ds, tok, eval_n, max_answer_len)
                     hard_acc = _eval_accuracy(model, hard_ds, tok, eval_n, max_answer_len)
                     mem_gap = train_acc - easy_acc
-                    writer.log_metrics(
-                        step,
-                        easy_loss=easy_loss,
-                        hard_loss=hard_loss,
-                        train_acc=train_acc,
-                        easy_acc=easy_acc,
-                        hard_acc=hard_acc,
-                        memorization_gap=mem_gap,
-                    )
-                    mlf.log_metrics(
-                        {
-                            "easy_loss": easy_loss,
-                            "hard_loss": hard_loss,
-                            "train_acc": train_acc,
-                            "easy_acc": easy_acc,
-                            "hard_acc": hard_acc,
-                            "memorization_gap": mem_gap,
-                        },
-                        step=step,
-                    )
+                    metrics = {
+                        "easy_loss": easy_loss,
+                        "hard_loss": hard_loss,
+                        "train_acc": train_acc,
+                        "easy_acc": easy_acc,
+                        "hard_acc": hard_acc,
+                        "memorization_gap": mem_gap,
+                    }
+                    if hard_ood_ds is not None:
+                        metrics["hard_ood_acc"] = _eval_accuracy(model, hard_ood_ds, tok, eval_n, max_answer_len)
+                    if hard_carry_ds is not None:
+                        metrics["hard_carry_acc"] = _eval_accuracy(model, hard_carry_ds, tok, eval_n, max_answer_len)
+                    writer.log_metrics(step, **metrics)
+                    mlf.log_metrics(metrics, step=step)
                     log.info(
                         "step %d | train_loss=%.4f easy_acc=%.3f hard_acc=%.3f mem_gap=%.3f lr=%.2e wd=%.2e",
                         step, float(loss.item()), easy_acc, hard_acc, mem_gap, lr, wd,
@@ -225,14 +221,19 @@ def run(cfg: dict[str, Any]) -> Path:
             easy_acc = _eval_accuracy(model, easy_ds, tok, eval_n, max_answer_len)
             hard_acc = _eval_accuracy(model, hard_ds, tok, eval_n, max_answer_len)
             train_acc = _eval_accuracy(model, train_ds, tok, eval_n, max_answer_len)
-            writer.set_final(
+            final = dict(
                 final_train_loss=float(loss.item()),
                 final_easy_acc=easy_acc,
                 final_hard_acc=hard_acc,
                 final_train_acc=train_acc,
                 final_memorization_gap=train_acc - easy_acc,
-                num_params=model.num_params(),
+                num_params=float(model.num_params()),
             )
+            if hard_ood_ds is not None:
+                final["final_hard_ood_acc"] = _eval_accuracy(model, hard_ood_ds, tok, eval_n, max_answer_len)
+            if hard_carry_ds is not None:
+                final["final_hard_carry_acc"] = _eval_accuracy(model, hard_carry_ds, tok, eval_n, max_answer_len)
+            writer.set_final(**final)
 
             if bool(tr.get("checkpoint", True)):
                 ckpt = writer.add_artifact("checkpoint_final.pt")

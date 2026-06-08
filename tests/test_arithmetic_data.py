@@ -22,18 +22,22 @@ def test_make_example_reverse():
     assert answer == "46"
 
 
-def test_hard_split_is_ood_and_disjoint():
+def test_hard_split_mixes_ood_and_carry_and_is_disjoint():
     cfg = ArithmeticConfig(
         n_train=600, n_easy_eval=64, n_hard_eval=64,
-        train_min_digits=1, train_max_digits=3, hard_min_digits=4, hard_max_digits=5, seed=0,
+        train_min_digits=1, train_max_digits=2, hard_min_digits=3, hard_max_digits=4,
+        hard_ood_frac=0.5, seed=0,
     )
     splits = build_splits(cfg)
     train_pairs = set(splits["train"].pairs)
     hard = splits["hard_eval"]
-    # Hard operands are longer than any training operand => disjoint by construction.
+    # The whole hard split is disjoint from train (different examples).
     assert all(p not in train_pairs for p in hard.pairs)
-    for a, b in hard.pairs:
-        assert max(len(str(a)), len(str(b))) >= cfg.hard_min_digits
+    # It contains BOTH out-of-distribution lengths AND in-distribution carry cases.
+    lengths = [max(len(str(a)), len(str(b))) for a, b in hard.pairs]
+    assert any(le >= cfg.hard_min_digits for le in lengths), "expected some OOD-length examples"
+    assert any(le <= cfg.train_max_digits for le in lengths), "expected some in-range carry examples"
+    assert splits["hard_ood_eval"] is not None and splits["hard_carry_eval"] is not None
 
 
 def test_item_shapes_and_answer_only_mask():

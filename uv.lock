@@ -1500,6 +1500,7 @@ dependencies = [
     { name = "pydantic" },
     { name = "pyyaml" },
     { name = "rich" },
+    { name = "tabulate" },
     { name = "torch" },
 ]
 
@@ -1542,6 +1543,7 @@ requires-dist = [
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "rich", specifier = ">=13.0" },
     { name = "skypilot", marker = "extra == 'cloud'", specifier = ">=0.6" },
+    { name = "tabulate", specifier = ">=0.9" },
     { name = "torch", specifier = ">=2.2,<3" },
     { name = "transformers", marker = "extra == 'llm'", specifier = ">=4.40" },
 ]
