@@ -1,0 +1,105 @@
+{
+  "data_class": "synthetic",
+  "fictional": true,
+  "seed": 0,
+  "personas": {
+    "ada": {
+      "display_name": "Ada (the terse engineer)",
+      "principal_md": "personas/ada/PRINCIPAL.md",
+      "preferences": [
+        {
+          "topic": "drink",
+          "choice": "black coffee",
+          "alt": "herbal tea"
+        },
+        {
+          "topic": "editor",
+          "choice": "a terminal editor",
+          "alt": "a heavy IDE"
+        },
+        {
+          "topic": "prose",
+          "choice": "short declarative sentences",
+          "alt": "ornate flourishes"
+        },
+        {
+          "topic": "meeting",
+          "choice": "an async written update",
+          "alt": "a live meeting"
+        }
+      ]
+    },
+    "bram": {
+      "display_name": "Bram (the ornate essayist)",
+      "principal_md": "personas/bram/PRINCIPAL.md",
+      "preferences": [
+        {
+          "topic": "drink",
+          "choice": "herbal tea",
+          "alt": "black coffee"
+        },
+        {
+          "topic": "editor",
+          "choice": "longhand on paper",
+          "alt": "a terminal editor"
+        },
+        {
+          "topic": "prose",
+          "choice": "ornate flourishes",
+          "alt": "short declarative sentences"
+        },
+        {
+          "topic": "meeting",
+          "choice": "a long walking conversation",
+          "alt": "an async written update"
+        }
+      ]
+    },
+    "cleo": {
+      "display_name": "Cleo (the plain-spoken organizer)",
+      "principal_md": "personas/cleo/PRINCIPAL.md",
+      "preferences": [
+        {
+          "topic": "drink",
+          "choice": "iced tea",
+          "alt": "black coffee"
+        },
+        {
+          "topic": "editor",
+          "choice": "a shared doc",
+          "alt": "longhand on paper"
+        },
+        {
+          "topic": "prose",
+          "choice": "plain bullet points",
+          "alt": "ornate flourishes"
+        },
+        {
+          "topic": "meeting",
+          "choice": "a short stand-up",
+          "alt": "a long walking conversation"
+        }
+      ]
+    }
+  },
+  "counts": {
+    "ada": {
+      "docs": 12,
+      "holdout": 4,
+      "train": 8,
+      "qa": 4
+    },
+    "bram": {
+      "docs": 12,
+      "holdout": 4,
+      "train": 8,
+      "qa": 4
+    },
+    "cleo": {
+      "docs": 12,
+      "holdout": 4,
+      "train": 8,
+      "qa": 4
+    }
+  }
+}
