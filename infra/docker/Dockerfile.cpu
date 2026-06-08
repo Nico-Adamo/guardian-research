@@ -1,0 +1,54 @@
+# CPU image for guardian-research.
+#
+# Purpose: a hermetic, reproducible environment to run the test suite and tiny
+# CPU smoke trains. The first deliverable runs on CPU with NO model downloads,
+# so this image deliberately installs only the core deps (no [cloud]/[llm]).
+#
+# Build (from repo root):
+#   docker build -f infra/docker/Dockerfile.cpu -t guardian-cpu .
+# Run the test suite (default):
+#   docker run --rm guardian-cpu
+# Run a CPU smoke train instead:
+#   docker run --rm guardian-cpu uv run ga train +exp=arithmetic_catapult train.max_steps=50 device=cpu
+#
+# This image is "cattle": stateless, disposable. It does NOT bake in any
+# secrets or private/persona data; only the committed repo is copied in.
+
+FROM python:3.11-slim
+
+# Keep Python lean and predictable inside containers.
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    UV_LINK_MODE=copy \
+    UV_PROJECT_ENVIRONMENT=/opt/venv \
+    PATH="/root/.local/bin:/opt/venv/bin:${PATH}"
+
+# git is needed for env_info (records the commit SHA into env.json) and for the
+# git-clone-@SHA worker flow when this image is reused on a node.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends git curl ca-certificates \
+ && rm -rf /var/lib/apt/lists/*
+
+# Install uv (the project's package manager). Pinned-by-lockfile resolution
+# happens in `uv sync` below.
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+
+WORKDIR /app
+
+# Copy dependency manifests first so the heavy `uv sync` layer caches across
+# code-only changes.
+COPY pyproject.toml uv.lock README.md ./
+COPY src ./src
+
+# Install core deps only (CPU). The torch CPU wheel resolves from PyPI; we do
+# NOT install the [cloud] or [llm] extras here — cloud launching and real LLMs
+# are out of scope for the CPU image.
+RUN uv sync --frozen --no-dev || uv sync --frozen
+
+# Copy the rest of the repo (configs, tests, conf, docs).
+COPY . .
+
+# Default: run the test suite (fast, CPU-only, no network/model downloads).
+# Override the CMD to run a smoke train (see header) or any `ga` subcommand.
+CMD ["uv", "run", "pytest", "-q", "-m", "not gpu and not slow"]

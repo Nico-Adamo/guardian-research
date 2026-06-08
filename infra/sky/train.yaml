@@ -1,0 +1,60 @@
+# SkyPilot task: ONE guardian-research run on a disposable GPU worker.
+#
+# This mirrors what `src/guardian_research/launchers/skypilot.py` renders for a
+# single run (no sweep). Prefer driving launches through `ga launch` so the
+# budget preflight + clean-tree + exact-SHA + dry-run-first gates run; this file
+# is the hand-checkable reference / fallback for `sky launch`.
+#
+# Worker contract: a worker is *cattle, not a pet*. It clones the repo at an
+# exact git SHA, `uv sync`s, runs ONE declared experiment, optionally uploads
+# results, and dies.
+#
+# Launch (after `ga launch --dry-run` and a passing budget preflight):
+#   GUARDIAN_REPO_URL=https://github.com/you/guardian-research.git \
+#   GIT_SHA=<exact-sha> \
+#   sky launch -i 5 --down -y infra/sky/train.yaml
+#
+# `-i 5 --down` = autostop after 5 idle minutes, then tear the cluster down so
+# an idle worker never silently burns budget.
+
+name: guardian-train
+
+resources:
+  cloud: runpod
+  accelerators: L40S:1
+  # autostop so an idle worker never silently burns budget.
+  # (set via `sky launch -i <min> --down`; mirrored here for documentation.)
+
+# NB: no `workdir:` and no `file_mounts:` of local paths — code travels by git
+# at an exact SHA only, so no local/private data can leak onto the worker.
+# (This is the central no-data-upload invariant; see infra/README.md.)
+envs:
+  GUARDIAN_REPO_URL: ""
+  GIT_SHA: ""
+  # Optional: set GUARDIAN_ARTIFACT_URI to an object store to upload results.
+  GUARDIAN_ARTIFACT_URI: ""
+  # Hydra overrides for the single run; override on the CLI with
+  #   --env GA_OVERRIDES="+exp=arithmetic_catapult_gpu seed=0 train.max_steps=2000"
+  GA_OVERRIDES: "+exp=arithmetic_catapult_gpu seed=0"
+
+setup: |
+  set -euo pipefail
+  test -n "$GUARDIAN_REPO_URL" || { echo "GUARDIAN_REPO_URL is required"; exit 1; }
+  test -n "$GIT_SHA" || { echo "GIT_SHA is required (exact commit SHA)"; exit 1; }
+  git clone "$GUARDIAN_REPO_URL" repo
+  cd repo
+  git checkout "$GIT_SHA"
+  curl -LsSf https://astral.sh/uv/install.sh | sh
+  export PATH="$HOME/.local/bin:$PATH"
+  uv sync
+
+run: |
+  set -euo pipefail
+  cd repo
+  export PATH="$HOME/.local/bin:$PATH"
+  export GUARDIAN_REPO_ROOT="$PWD"
+  uv run ga train $GA_OVERRIDES
+  # upload results if an artifact store is configured (else they die with the worker)
+  if [ -n "$GUARDIAN_ARTIFACT_URI" ]; then
+    echo "would sync runs/ -> $GUARDIAN_ARTIFACT_URI"
+  fi

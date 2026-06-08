@@ -1,0 +1,65 @@
+# SkyPilot task: pull a checkpoint / prior run artifacts and run an eval/analyze
+# pass on a disposable worker.
+#
+# This is the "read side": instead of training, it ingests runs (optionally
+# downloaded from an artifact store) and renders a report via `ga analyze`.
+# Eval is light, so a small/cheap accelerator (or even CPU) is usually enough.
+#
+# Launch:
+#   GUARDIAN_REPO_URL=... GIT_SHA=<sha> \
+#   GUARDIAN_ARTIFACT_URI=s3://your-bucket/guardian-runs \
+#   sky launch -i 5 --down -y infra/sky/eval.yaml
+#
+# `-i 5 --down`: autostop after 5 idle minutes then tear down, so an idle worker
+# never silently burns budget.
+
+name: guardian-eval
+
+resources:
+  cloud: runpod
+  # Eval is light; an L4 is plenty (and cheaper than the train L40S).
+  accelerators: L4:1
+  # autostop enforced at submit time via `-i <min> --down`.
+
+# NB: no `workdir:` / no `file_mounts:` of local paths. Code travels by git at
+# an exact SHA; run artifacts travel via the object store at GUARDIAN_ARTIFACT_URI
+# (NOT from the local machine). No local/private data reaches the worker.
+envs:
+  GUARDIAN_REPO_URL: ""
+  GIT_SHA: ""
+  # Object store to PULL prior run artifacts from. If empty, eval runs against
+  # whatever runs/ the worker produced in this session (usually nothing).
+  GUARDIAN_ARTIFACT_URI: ""
+  # Which experiment's runs to analyze, and where to checkpoint-pull from.
+  GA_EXPERIMENT: "arithmetic_catapult"
+  GA_CHECKPOINT_URI: ""
+
+setup: |
+  set -euo pipefail
+  test -n "$GUARDIAN_REPO_URL" || { echo "GUARDIAN_REPO_URL is required"; exit 1; }
+  test -n "$GIT_SHA" || { echo "GIT_SHA is required (exact commit SHA)"; exit 1; }
+  git clone "$GUARDIAN_REPO_URL" repo
+  cd repo
+  git checkout "$GIT_SHA"
+  curl -LsSf https://astral.sh/uv/install.sh | sh
+  export PATH="$HOME/.local/bin:$PATH"
+  uv sync
+
+run: |
+  set -euo pipefail
+  cd repo
+  export PATH="$HOME/.local/bin:$PATH"
+  export GUARDIAN_REPO_ROOT="$PWD"
+  # Pull prior runs/checkpoints from the artifact store, if configured.
+  if [ -n "$GUARDIAN_ARTIFACT_URI" ]; then
+    echo "would sync $GUARDIAN_ARTIFACT_URI -> runs/"
+  fi
+  if [ -n "$GA_CHECKPOINT_URI" ]; then
+    echo "would pull checkpoint $GA_CHECKPOINT_URI -> artifacts/"
+  fi
+  # Render the local markdown report (plots/tables) from the ingested runs.
+  uv run ga analyze --experiment "$GA_EXPERIMENT"
+  # Push the rendered report back out, if an artifact store is configured.
+  if [ -n "$GUARDIAN_ARTIFACT_URI" ]; then
+    echo "would sync reports/ -> $GUARDIAN_ARTIFACT_URI"
+  fi

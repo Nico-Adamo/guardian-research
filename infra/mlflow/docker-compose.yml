@@ -1,0 +1,40 @@
+# Self-hosted MLflow tracking server for guardian-research.
+#
+# Tracking stays LOCAL / self-hosted by design — NOT a managed SaaS. The default
+# (`conf/tracking/local.yaml`) is an even simpler `file:./mlruns` store that
+# needs no server at all. This compose file is for when you want a shared,
+# always-on tracking UI on a machine you control (a laptop, a home server, a VM
+# you own) with a sqlite backend store + a local artifact directory.
+#
+# Why self-hosted: runs/metrics may reference experiment context we do not want
+# leaving infrastructure we control. No private/persona data is logged in any
+# case (synthetic only), but the policy is "tracking is ours, not a vendor's".
+#
+# Bring it up:
+#   docker compose -f infra/mlflow/docker-compose.yml up -d
+# Then point the control plane at it (instead of the file store):
+#   export MLFLOW_TRACKING_URI=http://localhost:5000
+# UI: http://localhost:5000
+#
+# Data lives in ./_mlflow_data on the host (bind-mounted). Both the sqlite
+# backend DB and the artifact directory persist there. This directory is local
+# only — add it to your backups if you care about run history.
+
+services:
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v2.13.0
+    container_name: guardian-mlflow
+    ports:
+      - "5000:5000"
+    volumes:
+      # Single host dir holds BOTH the sqlite backend store and artifacts, so
+      # the whole tracking state is one inspectable, backuppable folder.
+      - ./_mlflow_data:/mlflow
+    command: >
+      mlflow server
+      --host 0.0.0.0
+      --port 5000
+      --backend-store-uri sqlite:////mlflow/mlflow.db
+      --artifacts-destination /mlflow/artifacts
+      --serve-artifacts
+    restart: unless-stopped

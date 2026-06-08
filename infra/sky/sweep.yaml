@@ -1,0 +1,64 @@
+# SkyPilot MANAGED-JOBS task: a guardian-research sweep across a disposable
+# worker (or pool of workers).
+#
+# A sweep multiplies cost by grid_size = (product of axis lengths) * (#seeds),
+# so it is the most budget-sensitive launch. Submit it ONLY after:
+#   1) `ga launch --dry-run +exp=<name> sweep=<sweep>` renders the grid + cost,
+#   2) the budget preflight passes (per-job cap, daily cap, allowed provider,
+#      allowed data class, clean git tree, exact SHA, prior dry-run), and
+#   3) a human explicitly approves (`ga launch --yes`, or `sky jobs launch -y`).
+# These gates live in `ga launch` / common/budget.py — do not bypass them.
+#
+# Managed jobs (recovery + queueing) are launched with `sky jobs launch`:
+#   GUARDIAN_REPO_URL=... GIT_SHA=<sha> \
+#   sky jobs launch --down -y infra/sky/sweep.yaml
+#
+# autostop / --down: `--down` tears the cluster down when the job finishes;
+# managed jobs also auto-recover on spot preemption. Always pass `--down` (or an
+# autostop `-i <min>`) so an idle/finished worker never silently burns budget.
+
+name: guardian-sweep
+
+resources:
+  cloud: runpod
+  accelerators: L40S:1
+  # Spot is cheaper for sweeps; managed jobs auto-recover on preemption.
+  # Uncomment to opt in (and keep `--down` so nothing lingers):
+  # use_spot: true
+  # autostop is enforced at submit time via `--down` / `-i <min>`.
+
+# NB: no `workdir:` / no `file_mounts:` of local paths — code travels by git at
+# an exact SHA only. No local/private data ever reaches the worker.
+envs:
+  GUARDIAN_REPO_URL: ""
+  GIT_SHA: ""
+  GUARDIAN_ARTIFACT_URI: ""
+  # The sweep config name + experiment. The worker re-expands the grid from the
+  # committed sweep config (single source of truth), so the YAML stays small and
+  # the exact grid is reproducible from the SHA.
+  GA_EXP: "arithmetic_catapult_gpu"
+  GA_SWEEP: "arith_lr_wd_seed_v0"
+
+setup: |
+  set -euo pipefail
+  test -n "$GUARDIAN_REPO_URL" || { echo "GUARDIAN_REPO_URL is required"; exit 1; }
+  test -n "$GIT_SHA" || { echo "GIT_SHA is required (exact commit SHA)"; exit 1; }
+  git clone "$GUARDIAN_REPO_URL" repo
+  cd repo
+  git checkout "$GIT_SHA"
+  curl -LsSf https://astral.sh/uv/install.sh | sh
+  export PATH="$HOME/.local/bin:$PATH"
+  uv sync
+
+run: |
+  set -euo pipefail
+  cd repo
+  export PATH="$HOME/.local/bin:$PATH"
+  export GUARDIAN_REPO_ROOT="$PWD"
+  # Drive the sweep through `ga train` per shard. The committed sweep config
+  # defines axes/seeds; here we run the whole declared grid on this worker.
+  # (For multi-worker fan-out, shard with `sky jobs launch` + a per-shard env.)
+  uv run ga train +exp="$GA_EXP" sweep="$GA_SWEEP"
+  if [ -n "$GUARDIAN_ARTIFACT_URI" ]; then
+    echo "would sync runs/ -> $GUARDIAN_ARTIFACT_URI"
+  fi

@@ -1,0 +1,61 @@
+# GPU image for guardian-research disposable workers.
+#
+# Purpose: the image a cloud worker can run to execute one declared experiment
+# on a real accelerator. The preferred worker flow is still "clone @SHA, uv
+# sync, run, die" (see infra/sky/*.yaml); this image is an optional convenience
+# for environments that want a prebuilt base instead of bootstrapping uv at
+# runtime.
+#
+# Build (from repo root):
+#   docker build -f infra/docker/Dockerfile.gpu -t guardian-gpu .
+# Run one experiment (requires --gpus and an NVIDIA runtime):
+#   docker run --rm --gpus all guardian-gpu +exp=arithmetic_catapult_gpu seed=0
+#
+# NOTE on torch CUDA wheels: the core `torch` dep resolves a CPU/default wheel
+# from PyPI by default. To get CUDA-enabled torch matching the 12.4 base below,
+# install from the appropriate PyTorch CUDA index, e.g.:
+#   uv pip install --index-url https://download.pytorch.org/whl/cu124 torch
+# Pin this to your exact CUDA/torch combination for reproducibility. We leave it
+# as a documented manual step rather than baking a specific wheel in, so the
+# core lockfile stays CPU-portable.
+#
+# Stateless/disposable: no secrets, no private/persona data baked in. Code and
+# config travel via the committed repo (and, in the sky flow, via git @SHA).
+
+FROM nvidia/cuda:12.4.0-runtime-ubuntu22.04
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    DEBIAN_FRONTEND=noninteractive \
+    UV_LINK_MODE=copy \
+    UV_PROJECT_ENVIRONMENT=/opt/venv \
+    PATH="/root/.local/bin:/opt/venv/bin:${PATH}"
+
+# Python 3.11 + git/curl. The CUDA runtime base ships no Python, so install it.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+        python3.11 python3.11-venv python3.11-dev \
+        git curl ca-certificates \
+ && ln -sf /usr/bin/python3.11 /usr/local/bin/python3 \
+ && ln -sf /usr/bin/python3.11 /usr/local/bin/python \
+ && rm -rf /var/lib/apt/lists/*
+
+# Install uv.
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+
+WORKDIR /app
+
+COPY pyproject.toml uv.lock README.md ./
+COPY src ./src
+
+# Sync core deps. The CUDA torch wheel is a documented manual step (see header);
+# the default sync resolves the portable wheel so the image still builds without
+# a GPU present.
+RUN uv sync --frozen --no-dev || uv sync --frozen
+
+COPY . .
+
+# Entrypoint runs `ga train`; arguments after the image name are Hydra overrides,
+# e.g.  docker run --gpus all guardian-gpu +exp=arithmetic_catapult_gpu seed=0
+ENTRYPOINT ["uv", "run", "ga", "train"]
+CMD ["+exp=arithmetic_catapult_gpu", "seed=0"]
