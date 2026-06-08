@@ -77,8 +77,9 @@ def test_preflight_requires_clean_tree_and_sha():
     report = BudgetGuard().preflight_launch(
         provider="runpod",
         data_class="synthetic",
-        estimated_cost_usd=2.0,
-        max_cost_usd=5.0,
+        per_job_cost_usd=0.21,
+        total_cost_usd=2.0,
+        max_total_cost_usd=5.0,
         git_dirty=True,  # dirty tree -> must fail
         git_sha="unknown",  # no SHA -> must fail
         dry_run_done=False,  # no dry run -> must fail

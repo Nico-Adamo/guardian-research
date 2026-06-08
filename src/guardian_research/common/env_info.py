@@ -37,7 +37,13 @@ def _git(*args: str) -> str | None:
 def git_info() -> GitInfo:
     sha = _git("rev-parse", "HEAD") or "unknown"
     status = _git("status", "--porcelain")
-    dirty = bool(status) if status is not None else True
+    if status is None:
+        dirty = True
+    else:
+        # "dirty" means tracked code differs from HEAD. Untracked files (e.g.
+        # generated reports/proposals, local data) don't count: the worker
+        # clones the exact SHA, so untracked local files never reach it.
+        dirty = any(not line.startswith("??") for line in status.splitlines())
     branch = _git("rev-parse", "--abbrev-ref", "HEAD")
     return GitInfo(sha=sha, dirty=dirty, branch=branch)
 

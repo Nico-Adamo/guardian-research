@@ -1,0 +1,52 @@
+schema_version: 1.0.0
+name: arithmetic_catapult_sweep_v_next
+experiment: arithmetic_catapult
+hypothesis: 'H001: high-LR / cyclic schedules (one-cycle, cyclic LR, cyclic WD) improve
+  HARD arithmetic accuracy relative to a baseline_cosine control at matched compute.'
+expected_signal: A non-baseline schedule's final hard-split accuracy exceeds the baseline's
+  by a margin that survives across seeds ('the curves cross' on the hard split).
+metric: final_hard_acc
+ablation: baseline_cosine is the control; vary lr x weight_decay x schedule x seed
+  to isolate which factor (peak LR, WD cycling) drives any hard-split gain.
+stop_conditions:
+- Stop a shard early if train_loss diverges (NaN) or train_acc stays < 0.05 after
+  50% of steps.
+- Stop the sweep if no non-baseline schedule beats baseline hard_acc after all seeds
+  (downgrade H001).
+- 'Hard total-cost ceiling: 7.56 USD (per-job <= 5.0 USD).'
+base_config: +exp=arithmetic_catapult model=tiny_transformer
+sweep:
+  schedule:
+  - onecycle_high_lr
+  - cyclic_lr
+  - cyclic_weight_decay
+  train.lr:
+  - 0.0005
+  - 0.001
+  - 0.002
+  train.weight_decay:
+  - 0.01
+  - 0.1
+seeds:
+- 0
+- 1
+data_class: synthetic
+provider: runpod
+gpu: l40s
+hours_per_job: 0.25
+per_job_cost_usd: 0.21
+estimated_cost_usd: 7.56
+max_cost_usd: 25.0
+created_from_runs:
+- baseline_cosine-20260608T231316-0c92d7
+- cyclic_lr-20260608T231421-8e6ccf
+- cyclic_weight_decay-20260608T231450-dd63e4
+- onecycle_high_lr-20260608T231349-206394
+reproducibility:
+  git_sha: 7d16a3a530cf6ad8e1f277a8cc3881cd2f3e3095
+  git_dirty: true
+  requires_clean_tree: true
+  requires_exact_sha: true
+  config: +exp=arithmetic_catapult model=tiny_transformer
+  grid_size: 36
+rationale: 4 prior run(s); current best hard-split accuracy = 0.333.

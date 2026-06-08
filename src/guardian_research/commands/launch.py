@@ -113,8 +113,9 @@ def run(argv: list[str]) -> int:
     report = BudgetGuard(policy).preflight_launch(
         provider=cloud,
         data_class=args.data_class,
-        estimated_cost_usd=total,
-        max_cost_usd=args.max_cost_usd,
+        per_job_cost_usd=per_job,
+        total_cost_usd=total,
+        max_total_cost_usd=args.max_cost_usd,
         git_dirty=git_info().dirty,
         git_sha=current_sha(),
         dry_run_done=_dry_run_done(marker_key),

@@ -181,8 +181,9 @@ class BudgetGuard:
         *,
         provider: str,
         data_class: str,
-        estimated_cost_usd: float,
-        max_cost_usd: float,
+        per_job_cost_usd: float,
+        total_cost_usd: float,
+        max_total_cost_usd: float,
         git_dirty: bool,
         git_sha: str | None,
         dry_run_done: bool,
@@ -192,12 +193,20 @@ class BudgetGuard:
         r = ValidationReport.start(f"launch:{provider}")
         r.add("provider_allowed", provider in p.allowed_providers, f"{provider} in {p.allowed_providers}")
         r.add("data_class_allowed", data_class in p.allowed_data_classes, f"{data_class} in {p.allowed_data_classes}")
-        r.add("cost_within_job_cap", max_cost_usd <= p.max_job_cost_usd, f"{max_cost_usd} <= {p.max_job_cost_usd}")
-        r.add("estimate_within_max", estimated_cost_usd <= max_cost_usd, f"{estimated_cost_usd} <= {max_cost_usd}")
+        r.add(
+            "per_job_within_cap",
+            per_job_cost_usd <= p.max_job_cost_usd,
+            f"per-job ${per_job_cost_usd} <= job cap ${p.max_job_cost_usd}",
+        )
+        r.add(
+            "total_within_max",
+            total_cost_usd <= max_total_cost_usd,
+            f"total ${total_cost_usd} <= declared max ${max_total_cost_usd}",
+        )
         r.add(
             "within_daily_budget",
-            spent_today() + estimated_cost_usd <= p.max_daily_cost_usd,
-            f"{round(spent_today() + estimated_cost_usd, 2)} <= {p.max_daily_cost_usd}",
+            spent_today() + total_cost_usd <= p.max_daily_cost_usd,
+            f"{round(spent_today() + total_cost_usd, 2)} <= daily cap ${p.max_daily_cost_usd}",
         )
         if p.require_clean_git_tree:
             r.add("clean_git_tree", not git_dirty, "working tree must be clean before a cloud launch")
