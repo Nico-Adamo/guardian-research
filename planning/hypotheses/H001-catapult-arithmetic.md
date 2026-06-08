@@ -1,0 +1,89 @@
+# H001 — Cyclic high-LR / high-WD schedules improve HARD arithmetic scaling
+
+- **ID:** H001
+- **Status:** open (tooling implemented; not yet tested at a scale that could confirm or refute)
+- **Source:** `planning/guardian/llm-catapult.md` — "Prototyping With Arithmetic", "Cyclical Learning Rates"
+- **Owns experiment:** `arithmetic_catapult` (`src/guardian_research/experiments/arithmetic/`, runner key `arithmetic`)
+- **Primary metric:** `final_hard_acc` (also `final_hard_ood_acc`, `final_hard_carry_acc`, `final_memorization_gap`)
+
+> This file pre-registers a falsifiable claim and its kill criteria. It describes
+> *what we will measure and what would count as evidence*, not a result. As of this
+> writing nothing here is confirmed; see `reports/latest.md` for what has actually been run.
+
+## Claim
+
+Training a small decoder-only transformer on synthetic arithmetic with a **cyclic /
+high-learning-rate schedule** (one-cycle high-LR, cyclic LR, or constant-high-LR +
+cyclic weight decay) will, given enough steps at matched compute, **improve accuracy
+on a HARD held-out split** (longer-than-trained operands and carry-chain-heavy
+examples) relative to a `baseline_cosine` control — even if the catapult recipe looks
+*worse* on average / on the easy split for most of training.
+
+The mechanism (per the source essay): high-LR cycles act as regularization that
+catapults the model out of the nearest "memorization" basin into a flatter, more
+algorithmic basin that implements something closer to true carry/borrow arithmetic,
+which is what the hard split is built to expose.
+
+## Metric
+
+- **Primary:** `final_hard_acc` — exact-match accuracy on the hard split (mix of
+  out-of-distribution operand lengths and carry-heavy in-distribution lengths).
+- **Decomposed:** `final_hard_ood_acc` (longer operands) and `final_hard_carry_acc`
+  (carry-chain-heavy at trained lengths) — to see *which* kind of hardness moves.
+- **Diagnostic, not target:** `final_easy_acc`, `final_train_acc`,
+  `final_memorization_gap` (train_acc − easy_eval_acc), loss spikes, grad-norm.
+- **Scaling framing (the real test):** plot `hard_acc` vs compute/steps for each
+  recipe. The claim is about the **shape of the curve / the exponent on the hard
+  split**, not a single final number. The interesting quantity is *whether the
+  catapult curve eventually crosses the baseline curve.*
+
+## Expected signal
+
+**"The curves cross."** Early in training the catapult recipe under-performs the
+baseline on easy and average metrics (it is busy escaping basins, with visible loss
+spikes at each LR peak). Later, the catapult recipe's hard-split accuracy keeps
+climbing while the baseline's plateaus, and at some step the catapult `final_hard_acc`
+**exceeds** the baseline `final_hard_acc` and stays above it. A confirmatory signal
+would additionally show the gain is concentrated in `hard_ood_acc` / `hard_carry_acc`
+(true extrapolation), not just easy-split noise.
+
+## Ablation / control
+
+- **Control:** `baseline_cosine` (standard cosine-decay LR, low/no cycling) at
+  **matched parameter count and matched total optimizer steps**.
+- **Isolate the factor:** sweep `schedule` × `train.lr` × `train.weight_decay` × `seed`
+  so we can attribute any hard-split gain to peak-LR, to WD cycling, or to their
+  interaction — rather than to "tried more configs". (See
+  `conf/sweep/arith_lr_wd_seed_v0.yaml` and `reports/proposals/next_arith_sweep.yaml`.)
+- **Multiple seeds** are mandatory: a single-seed crossover is noise, not signal.
+- **Negative control of the hard split itself:** the hard split must be genuinely OOD
+  (the data generator guarantees hard operand lengths are strictly longer than train
+  lengths), so memorization cannot explain a gain.
+
+## STOP CONDITIONS
+
+Per-shard (cheap, automatic):
+- Kill a shard if `train_loss` is NaN/Inf, or if `train_acc < 0.05` after 50% of steps
+  (the run never left the floor — not a catapult, just a dead run).
+
+Sweep-level (decision points):
+- **No-crossover kill (the kill criterion):** if, after running all pre-registered
+  seeds at matched compute, **no** non-baseline schedule beats the best baseline
+  `final_hard_acc` by a margin that holds across seeds, then **downgrade H001**: stop
+  treating "catapult pretraining" as the main engine and demote it to a side thread.
+  (The current smoke snapshot in `reports/runs/smoke_arithmetic.md` shows
+  Δ = +0.000 — i.e. not yet beaten — at toy scale; this is *not* a refutation, only an
+  un-finished test, because compute and seed coverage are far below what the claim needs.)
+- **Scale-honesty stop:** do not escalate to larger models / more compute until a
+  crossover is observed *at small scale*. If small scale cannot show even a hint, more
+  compute is unlikely to be the missing ingredient.
+- **Budget stop:** respect the per-job and total-cost ceilings in the active proposal
+  (`reports/proposals/next_arith_sweep.yaml`); halt the sweep at the total-cost ceiling
+  regardless of result.
+
+## Follow-up if (and only if) the signal appears
+
+Mechanistic confirmation: inspect the winning checkpoints for explicit carry/borrow
+structure (per `experiments/arithmetic/analyze.py` + the essay's pointer to Zhong et al
+2023 / interpretability). A crossover *without* an algorithmic story is weaker evidence
+and should be flagged as such in the postmortem (`reports/postmortems/`).
