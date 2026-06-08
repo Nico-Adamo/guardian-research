@@ -1,0 +1,27 @@
+# @package _global_
+# Catapult-arithmetic lab (CPU-toy defaults). Train on short operands, evaluate
+# generalization on a HARD split of longer (OOD) and carry-chain-heavy examples.
+experiment: arithmetic_catapult
+runner: arithmetic
+
+data:
+  op: "+"
+  train_min_digits: 1
+  train_max_digits: 3
+  hard_min_digits: 4 # strictly longer than train -> out of distribution
+  hard_max_digits: 5
+  n_train: 3000
+  n_easy_eval: 128
+  n_hard_eval: 128
+  carry_heavy_frac: 0.5
+  reverse_answer: true
+
+train:
+  max_steps: 500
+  batch_size: 256
+  eval_every: 125
+  eval_n: 64
+  eval_batches: 2
+  lr: 1.0e-3
+  weight_decay: 0.05
+  checkpoint: true

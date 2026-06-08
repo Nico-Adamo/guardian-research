@@ -1,0 +1,28 @@
+# @package _global_
+# GPU-scale catapult-arithmetic config. PRESENT BUT NOT LAUNCHED BY DEFAULT.
+# Use with: `+exp=arithmetic_catapult_gpu model=small_transformer` on a GPU host
+# (via `ga launch`, after dry-run + budget validation).
+experiment: arithmetic_catapult
+runner: arithmetic
+
+data:
+  op: "+"
+  train_min_digits: 1
+  train_max_digits: 10
+  hard_min_digits: 11 # extrapolate to far-OOD lengths
+  hard_max_digits: 20
+  n_train: 200000
+  n_easy_eval: 2000
+  n_hard_eval: 2000
+  carry_heavy_frac: 0.5
+  reverse_answer: true
+
+train:
+  max_steps: 40000
+  batch_size: 512
+  eval_every: 1000
+  eval_n: 1000
+  eval_batches: 8
+  lr: 1.0e-3
+  weight_decay: 0.05
+  checkpoint: true

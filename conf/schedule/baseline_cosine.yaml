@@ -1,0 +1,6 @@
+# The control recipe: warmup + cosine decay, constant weight decay.
+name: baseline_cosine
+base_lr: ${train.lr}
+base_wd: ${train.weight_decay}
+warmup_frac: 0.05
+min_lr_mult: 0.1

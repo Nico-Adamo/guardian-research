@@ -1,0 +1,7 @@
+# One-cycle with a HIGH peak LR (super-convergence style). Ramp up, anneal down.
+name: onecycle_high_lr
+base_lr: ${train.lr}
+base_wd: ${train.weight_decay}
+warmup_frac: 0.0
+min_lr_mult: 0.04
+max_lr_mult: 8.0 # peak = 8 * base_lr

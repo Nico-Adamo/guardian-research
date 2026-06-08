@@ -1,0 +1,44 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Environment / secrets — NEVER commit real secrets (see docs/security.md)
+.env
+.env.*
+!.env.example
+
+# Local experiment state (these are local caches; results are re-ingestable).
+# NOTE: tracked by DVC, not git. See data/README.md.
+/runs/
+/artifacts/
+/mlruns/
+/data/raw/
+/data/processed/
+/data/splits/
+/outputs/
+!**/.gitkeep
+
+# DVC may add its own files; keep .dvc/ pointers but ignore the cache.
+/.dvc/cache/
+/.dvc/tmp/
+
+# OS / editor
+.DS_Store
+*.swp
+.idea/
+.vscode/
+
+# Private persona data must never be committed. Synthetic personas are OK and
+# live under data/persona_synthetic/ which is intentionally NOT ignored.
+/data/persona_private/
+*.principal.private.md

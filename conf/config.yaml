@@ -1,0 +1,32 @@
+# Root config. Experiments are *added* with `+exp=<name>` (they use the global
+# package and set `experiment` + `runner` + data/train overrides). Groups below
+# can be overridden on the CLI, e.g. `model=tiny_transformer schedule=cyclic_lr`.
+defaults:
+  - _self_
+  - model: tiny_transformer
+  - schedule: baseline_cosine
+  - launcher: local
+  - tracking: local
+  - sweep: none
+
+seed: 0
+device: auto # auto -> cuda if available else cpu
+
+# Set by `+exp=...`; a bare config without an experiment cannot train.
+experiment: null
+runner: null
+
+# Filled in by the experiment config.
+data: {}
+
+train:
+  max_steps: 500
+  batch_size: 256
+  eval_every: 125
+  eval_n: 64
+  eval_batches: 2
+  log_every: 50
+  grad_clip: 1.0
+  lr: 1.0e-3
+  weight_decay: 0.05
+  checkpoint: true

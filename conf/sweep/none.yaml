@@ -1,0 +1,7 @@
+# Default: no sweep (a single run). Overridden with `sweep=<name>`.
+name: none
+axes: {}
+seeds: [0]
+gpu: l40s
+provider: runpod
+hours_per_job: 0.25

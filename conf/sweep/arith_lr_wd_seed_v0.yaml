@@ -1,0 +1,12 @@
+# First catapult-arithmetic sweep: schedule x lr x weight_decay x seed.
+# Used by `ga launch --dry-run ... sweep=arith_lr_wd_seed_v0`. Cost is estimated
+# from grid_size x hours_per_job x GPU rate; the budget guard gates real launch.
+name: arith_lr_wd_seed_v0
+provider: runpod
+gpu: l40s
+hours_per_job: 0.25
+axes:
+  schedule: [baseline_cosine, onecycle_high_lr, cyclic_lr, cyclic_weight_decay]
+  train.lr: [5.0e-4, 1.0e-3, 2.0e-3]
+  train.weight_decay: [0.01, 0.1]
+seeds: [0, 1]

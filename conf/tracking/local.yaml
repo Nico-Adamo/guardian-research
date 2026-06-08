@@ -1,0 +1,3 @@
+# Local/self-hostable tracking by default (no managed SaaS). See docs/security.md.
+backend: mlflow
+uri: file:./mlruns

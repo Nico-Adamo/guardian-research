@@ -1,0 +1,9 @@
+# Mild LR, weight decay cycles low->high each cycle: let weights grow, then
+# "shrink them all at once" — the artificial analogue of sleep (essay fn. 12).
+name: cyclic_weight_decay
+base_lr: ${train.lr}
+base_wd: ${train.weight_decay}
+warmup_frac: 0.05
+n_cycles: 4
+wd_min_mult: 0.1
+wd_max_mult: 20.0
