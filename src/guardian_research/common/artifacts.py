@@ -110,7 +110,7 @@ class RunWriter:
         out.write_text(self.result.model_dump_json(indent=2))
         return out
 
-    def __enter__(self) -> "RunWriter":
+    def __enter__(self) -> RunWriter:
         return self
 
     def __exit__(self, exc_type, exc, tb) -> None:

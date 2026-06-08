@@ -17,11 +17,12 @@ from __future__ import annotations
 
 import json
 import os
-import tomllib
 from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
 from typing import Any
+
+import tomllib
 
 from .paths import repo_root, runs_dir
 from .schemas import Proposal, ValidationReport
@@ -54,7 +55,7 @@ class BudgetPolicy:
     require_dry_run_first: bool = True
 
     @classmethod
-    def load(cls) -> "BudgetPolicy":
+    def load(cls) -> BudgetPolicy:
         """Load from pyproject.toml, then apply (tightening) env overrides."""
         data: dict[str, Any] = {}
         pyproject = repo_root() / "pyproject.toml"

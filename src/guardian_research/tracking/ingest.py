@@ -7,9 +7,6 @@ not care where it came from.
 
 from __future__ import annotations
 
-from pathlib import Path
-from typing import Optional
-
 import pandas as pd
 
 from ..common.artifacts import load_result
@@ -17,7 +14,7 @@ from ..common.paths import runs_dir
 from ..common.schemas import RunResult
 
 
-def load_runs(experiment: Optional[str] = None, since_days: Optional[float] = None) -> list[RunResult]:
+def load_runs(experiment: str | None = None, since_days: float | None = None) -> list[RunResult]:
     base = runs_dir()
     if not base.exists():
         return []

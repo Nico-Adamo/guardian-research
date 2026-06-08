@@ -33,7 +33,7 @@ class ScheduleConfig:
     wd_min_mult: float = 0.0  # cyclic WD floor
 
     @classmethod
-    def from_dict(cls, d: dict[str, Any]) -> "ScheduleConfig":
+    def from_dict(cls, d: dict[str, Any]) -> ScheduleConfig:
         known = {f for f in cls.__dataclass_fields__}  # type: ignore[attr-defined]
         return cls(**{k: v for k, v in d.items() if k in known})
 

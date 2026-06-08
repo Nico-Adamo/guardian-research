@@ -9,7 +9,7 @@ disposable cloud worker back to the local control plane.
 
 from __future__ import annotations
 
-from typing import Any, Literal, Optional
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -29,12 +29,12 @@ class MetricPoint(BaseModel):
 class GitInfo(BaseModel):
     sha: str
     dirty: bool
-    branch: Optional[str] = None
+    branch: str | None = None
 
 
 class EnvInfo(BaseModel):
     python: str
-    torch: Optional[str] = None
+    torch: str | None = None
     platform: str
     hostname: str
     device: str = "cpu"
@@ -50,7 +50,7 @@ class RunResult(BaseModel):
     seed: int
     status: Literal["running", "completed", "failed"] = "running"
     created_at: str
-    finished_at: Optional[str] = None
+    finished_at: str | None = None
     git: GitInfo
     env: EnvInfo
     # Flat, human-scannable hyperparameters (model size, lr, schedule, ...).
@@ -62,8 +62,8 @@ class RunResult(BaseModel):
     # Full per-metric history.
     metrics: dict[str, list[MetricPoint]] = Field(default_factory=dict)
     artifacts: list[str] = Field(default_factory=list)
-    notes: Optional[str] = None
-    error: Optional[str] = None
+    notes: str | None = None
+    error: str | None = None
 
 
 # --------------------------------------------------------------------------- #
@@ -103,7 +103,7 @@ class Proposal(BaseModel):
     # Provenance.
     created_from_runs: list[str] = Field(default_factory=list)
     reproducibility: dict[str, Any] = Field(default_factory=dict)
-    rationale: Optional[str] = None
+    rationale: str | None = None
 
     def grid_size(self) -> int:
         n = 1
@@ -126,11 +126,11 @@ class ValidationReport(BaseModel):
     passed: bool
     checks: list[CheckResult] = Field(default_factory=list)
 
-    def add(self, name: str, passed: bool, detail: str = "") -> "ValidationReport":
+    def add(self, name: str, passed: bool, detail: str = "") -> ValidationReport:
         self.checks.append(CheckResult(name=name, passed=passed, detail=detail))
         self.passed = self.passed and passed
         return self
 
     @classmethod
-    def start(cls, target: str) -> "ValidationReport":
+    def start(cls, target: str) -> ValidationReport:
         return cls(target=target, passed=True, checks=[])

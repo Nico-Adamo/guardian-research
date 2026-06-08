@@ -83,7 +83,7 @@ def run(argv: list[str]) -> int:
     cloud = args.cloud or sweep.get("provider") or (policy.allowed_providers[0] if policy.allowed_providers else "runpod")
     hours_per_job = float(sweep.get("hours_per_job", 0.25))
 
-    fixed_overrides = [o for o in overrides if not o.split("=")[0].lstrip("+~") in ("exp", "sweep")]
+    fixed_overrides = [o for o in overrides if o.split("=")[0].lstrip("+~") not in ("exp", "sweep")]
 
     spec = LaunchSpec(
         experiment=experiment,

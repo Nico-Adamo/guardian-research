@@ -52,7 +52,7 @@ def _expand_commands(spec: LaunchSpec, limit: int | None = None) -> list[str]:
     value_lists = [spec.sweep_axes[k] for k in keys]
     cmds = []
     for combo in itertools.product(*value_lists):
-        axis_str = " ".join(f"{k}={v}" for k, v in zip(keys, combo))
+        axis_str = " ".join(f"{k}={v}" for k, v in zip(keys, combo, strict=True))
         for s in spec.seeds:
             cmds.append(f"{base} {axis_str} seed={s}")
             if limit and len(cmds) >= limit:

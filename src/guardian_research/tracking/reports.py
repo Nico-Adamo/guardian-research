@@ -8,7 +8,6 @@ referenced with relative paths so the markdown renders on GitHub or locally.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Iterable, Optional
 
 import matplotlib
 
@@ -84,7 +83,7 @@ def generate_experiment_report(
     experiment: str,
     results: list[RunResult],
     out_path: Path,
-    title: Optional[str] = None,
+    title: str | None = None,
 ) -> str:
     """Render a markdown report for ``experiment`` and write figures next to it."""
     out_path = Path(out_path)

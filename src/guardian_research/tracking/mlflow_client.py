@@ -9,7 +9,8 @@ writes its authoritative ``results.json`` via ``RunWriter``.
 from __future__ import annotations
 
 import contextlib
-from typing import Any, Iterator
+from collections.abc import Iterator
+from typing import Any
 
 from ..common.logging import get_logger
 from ..common.paths import mlruns_dir
