@@ -1,0 +1,42 @@
+# @package _global_
+# Dynamic-grokking ("pondering") toy. Train a tiny model on EASY arithmetic,
+# pick HARD problems it fails, then compare test-time DYNAMIC EVALUATION
+# (inner gradient steps + sampling, optional "sleep" decay) against EQUAL-compute
+# STATIC best-of-N sampling. CPU-only; finishes in well under a minute.
+#
+# Not a claim: at this toy scale dynamic eval may not beat static. The harness
+# records the comparison truthfully either way.
+experiment: dynamic_grokking
+runner: dynamic_grokking
+
+data:
+  op: "+"
+  train_min_digits: 1
+  train_max_digits: 2
+  hard_min_digits: 3 # strictly longer than train -> out of distribution
+  hard_max_digits: 4
+  n_train: 1500
+  n_easy_eval: 64
+  n_hard_eval: 64
+  hard_ood_frac: 0.5
+  carry_heavy_frac: 0.5
+  reverse_answer: true
+
+# Quick base-model training on EASY data (deliberately under-trained so the
+# hard split has failures to ponder over).
+train:
+  max_steps: 300
+  batch_size: 128
+  lr: 3.0e-3
+  weight_decay: 0.05
+
+# The dynamic-evaluation harness itself.
+dynamic:
+  update_target: full # "full" | "last_layer" | "lora" (lora is an honest stub)
+  n_problems: 12 # hard problems to attempt (those the base fails greedily)
+  inner_steps: 6 # inner gradient steps of test-time adaptation per problem
+  inner_lr: 1.0e-2
+  inner_wd: 0.0
+  samples_per_step: 2 # candidate samples drawn between inner steps
+  temperature: 0.8
+  sleep_decay: 0.0 # >0 shrinks adapted weights between inner steps ("sleep")
