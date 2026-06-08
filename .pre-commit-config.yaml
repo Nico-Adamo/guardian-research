@@ -1,0 +1,81 @@
+# Pre-commit hooks — first line of defense against committing secrets.
+#
+# Rationale (see docs/security.md §5): secrets live in env or a local, git-ignored
+# `.env` only. They must never be committed and never uploaded to a worker. These
+# hooks catch the common accidental-paste / "just this once" mistake at commit
+# time. They reduce risk; they are not a substitute for never putting real secrets
+# in tracked files.
+#
+# Install once:   uv run pre-commit install
+# Run on demand:  uv run pre-commit run --all-files
+#
+# Note: pinned `rev`s pull from the network on first install. This is a dev-only
+# tooling install, not part of any default `ga`/test code path (which stay
+# offline and CPU-only).
+
+minimum_pre_commit_version: "3.7.0"
+
+repos:
+  # --- Generic hygiene + the built-in private-key detector ------------------
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: detect-private-key       # SSH / PEM / PGP private keys
+      - id: check-added-large-files  # stop accidental large/data/blob commits
+        args: ["--maxkb=2048"]
+      - id: check-merge-conflict
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: check-yaml
+      - id: check-toml
+
+  # --- Dedicated secret scanner ---------------------------------------------
+  # gitleaks is the primary scanner. If you prefer detect-secrets instead,
+  # comment this block out and uncomment the detect-secrets block below; either
+  # one satisfies the "dedicated secret scanner" requirement.
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.18.4
+    hooks:
+      - id: gitleaks
+
+  # --- Alternative scanner (detect-secrets) — disabled by default -----------
+  # - repo: https://github.com/Yelp/detect-secrets
+  #   rev: v1.5.0
+  #   hooks:
+  #     - id: detect-secrets
+  #       args: ["--baseline", ".secrets.baseline"]
+
+  # --- Lint / format (matches [tool.ruff] in pyproject.toml) ----------------
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.6.9
+    hooks:
+      - id: ruff          # lint (E,F,I,W,UP,B per pyproject)
+        args: ["--fix"]
+      - id: ruff-format   # formatter
+
+  # --- Local guard: never commit a .env file --------------------------------
+  # Belt-and-suspenders on top of .gitignore: `.env` is ignored, but a
+  # `git add -f` or a misconfigured ignore would slip it through. This hook
+  # fails the commit if any staged file is a `.env` / `.env.*` (the no-secrets
+  # `.env.example` is explicitly allowed).
+  - repo: local
+    hooks:
+      - id: forbid-dotenv-files
+        name: forbid committing .env files
+        entry: >-
+          bash -c '
+          bad=$(printf "%s\n" "$@"
+                | grep -E "(^|/)\.env($|\..*)" | grep -vE "(^|/)\.env\.example$" || true);
+          if [ -n "$bad" ]; then
+            echo "Refusing to commit env files (may contain secrets):";
+            echo "$bad";
+            echo "Keep secrets in a git-ignored .env; commit only .env.example.";
+            exit 1;
+          fi' --
+        language: system
+        # Match candidate env files by name so the hook also fires on a
+        # force-added, otherwise-ignored .env.
+        files: '(^|/)\.env($|\.)'
+        exclude: '(^|/)\.env\.example$'
+        pass_filenames: true
+        always_run: false
