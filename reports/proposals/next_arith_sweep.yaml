@@ -38,12 +38,12 @@ per_job_cost_usd: 0.21
 estimated_cost_usd: 7.56
 max_cost_usd: 25.0
 created_from_runs:
-- baseline_cosine-20260608T231316-0c92d7
-- cyclic_lr-20260608T231421-8e6ccf
-- cyclic_weight_decay-20260608T231450-dd63e4
-- onecycle_high_lr-20260608T231349-206394
+- baseline_cosine-20260608T234000-2c4e34
+- cyclic_lr-20260608T234104-f4b535
+- cyclic_weight_decay-20260608T234133-01ac44
+- onecycle_high_lr-20260608T234032-b27802
 reproducibility:
-  git_sha: 7d16a3a530cf6ad8e1f277a8cc3881cd2f3e3095
+  git_sha: d4a919a45736eb7c9e8590beb99ec2d5980e72f8
   git_dirty: true
   requires_clean_tree: true
   requires_exact_sha: true
