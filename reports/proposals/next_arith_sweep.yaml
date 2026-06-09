@@ -13,10 +13,11 @@ stop_conditions:
   50% of steps.
 - Stop the sweep if no non-baseline schedule beats baseline hard_acc after all seeds
   (downgrade H001).
-- 'Hard total-cost ceiling: 7.56 USD (per-job <= 5.0 USD).'
+- 'Hard total-cost ceiling: 10.08 USD (per-job <= 5.0 USD).'
 base_config: +exp=arithmetic_catapult model=tiny_transformer
 sweep:
   schedule:
+  - baseline_cosine
   - onecycle_high_lr
   - cyclic_lr
   - cyclic_weight_decay
@@ -35,18 +36,28 @@ provider: runpod
 gpu: l40s
 hours_per_job: 0.25
 per_job_cost_usd: 0.21
-estimated_cost_usd: 7.56
+estimated_cost_usd: 10.08
 max_cost_usd: 25.0
 created_from_runs:
 - baseline_cosine-20260608T234000-2c4e34
+- baseline_cosine-20260608T234709-d2ecdf
+- baseline_cosine-20260608T235603-d4cd47
+- baseline_cosine-20260608T235615-e04a87
+- baseline_cosine-20260609T004814-44c9ec
+- baseline_cosine-20260609T004832-587890
+- baseline_cosine-20260609T004902-e8ed97
+- baseline_cosine-20260609T010426-6f1471
+- baseline_cosine-20260609T010456-5a8df4
+- baseline_cosine-20260609T012138-6c7770
+- baseline_cosine-20260609T012154-166add
 - cyclic_lr-20260608T234104-f4b535
 - cyclic_weight_decay-20260608T234133-01ac44
 - onecycle_high_lr-20260608T234032-b27802
 reproducibility:
-  git_sha: d4a919a45736eb7c9e8590beb99ec2d5980e72f8
+  git_sha: 113d05ddeb6b0ab23677e4815a6e4bb83c8e54a7
   git_dirty: true
   requires_clean_tree: true
   requires_exact_sha: true
   config: +exp=arithmetic_catapult model=tiny_transformer
-  grid_size: 36
-rationale: 4 prior run(s); current best hard-split accuracy = 0.333.
+  grid_size: 48
+rationale: 14 prior run(s); current best hard-split accuracy = 0.333.
