@@ -30,6 +30,7 @@ from .schemas import Proposal, ValidationReport
 # Approximate on-demand GPU pricing (USD/hour), from the research-program notes.
 # These are used for *estimates only*; the real bill comes from the provider.
 GPU_HOURLY_USD: dict[str, float] = {
+    "a10": 0.60,
     "l4": 0.50,
     "rtx4090": 0.44,
     "a40": 0.44,

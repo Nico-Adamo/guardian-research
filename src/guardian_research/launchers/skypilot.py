@@ -17,7 +17,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 PROVIDER_TO_CLOUD = {"runpod": "runpod", "lambda": "lambda", "modal": "modal"}
-GPU_TO_ACCEL = {"l4": "L4", "rtx4090": "RTX4090", "l40s": "L40S", "a10g": "A10G", "a40": "A40", "a100": "A100", "a100-80gb": "A100-80GB", "h100": "H100"}
+GPU_TO_ACCEL = {"a10": "A10", "l4": "L4", "rtx4090": "RTX4090", "l40s": "L40S", "a10g": "A10G", "a40": "A40", "a100": "A100", "a100-80gb": "A100-80GB", "h100": "H100"}
 
 
 @dataclass
