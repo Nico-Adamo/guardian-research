@@ -27,7 +27,12 @@ The "spine" (24 tests + the CLI milestone sequence) and one full experiment vert
 - **Config:** Hydra config tree under `conf/` — `config.yaml` plus groups
   `model/`, `schedule/`, `launcher/`, `tracking/`, `sweep/`, and `exp/` experiment files.
 - **CLI commands** (auto-discovered, `commands/`): `train`, `analyze`, `launch`,
-  `propose`, `validate-proposal`, `data`, `status`, `logs`, `cancel`, `collect`.
+  `propose`, `validate-proposal`, `approve`, `data`, `status`, `logs`, `cancel`,
+  `collect`, `grok`, `persona`.
+- **Closed cloud round-trip:** workers upload `runs/` to
+  `$GUARDIAN_ARTIFACT_URI/<sha>/runs/`; `ga collect --from … --sha …` pulls + ingests.
+  `ga approve` records a content+commit-bound human sign-off; `ga launch --proposal`
+  refuses a real launch without a valid approval.
 - **Tracking / reporting:** `tracking/mlflow_client.py` (no-ops if mlflow absent),
   `tracking/ingest.py`, `tracking/reports.py`.
 - **Launchers:** `launchers/local.py` (in-process run), `launchers/skypilot.py`
@@ -60,7 +65,8 @@ The *experiments* above run; these *parts within them* are intentionally not bui
 - **Private→cloud encryption pipeline** (documented in `docs/security.md §4/§10`; the flag
   gates a path that does not exist — private data stays local).
 - **`experiments/cifar_robustness/`** — robustness micro-lab; placeholder, no code/hypothesis yet.
-- **Cloud result round-trip** — worker→home upload + a real `ga collect` (in progress).
+- **Real cloud submission** — still disabled by default (gates render the `sky launch`
+  command; actual `sky launch` needs `[cloud]` + `GUARDIAN_ALLOW_REAL_LAUNCH=1`).
 
 ## What has been RUN
 

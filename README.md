@@ -96,14 +96,26 @@ What each step does:
 | 5 | `ga propose --experiment ... --budget-usd N` | An analyzer agent drafts a next-sweep `Proposal` YAML (hypothesis, axes, expected signal, ablation, stop conditions, cost) from prior runs. | No |
 | 6 | `ga validate-proposal PATH` | Runs the proposal through the **budget guard** + a Hydra-compose check + reproducibility checks (git SHA present, cost matches grid). Prints PASS/FAIL. A FAIL blocks any launch. | No |
 
-Steps 5→6 are the **propose → validate → (human approve) → launch** loop. Only a
-human, after a passing validation, may re-run step 4 *without* `--dry-run` and
-with `--yes` to spend real money — and even then a hard budget preflight runs
-first (see [Safety gates](#safety-gates-and-autonomy-tiers)).
+Steps 5→6 are the **propose → validate → approve → launch** loop, closed by two
+more verbs:
+
+```bash
+ga approve reports/proposals/next_arith_sweep.yaml --by <you>   # records human sign-off
+ga launch --dry-run --proposal reports/proposals/next_arith_sweep.yaml   # then add --yes
+```
+
+`ga approve` binds the sign-off to the proposal's content hash **and** the current
+commit (edit the proposal or move HEAD → approval is invalidated, must re-approve).
+`ga launch --proposal …` refuses a real launch unless that approval is valid, on top
+of the budget preflight. Only a human, after a passing validation and approval, may
+run `ga launch --proposal … --yes` to spend real money.
+
+When a worker finishes it uploads `runs/` to `$GUARDIAN_ARTIFACT_URI/<git_sha>/runs/`;
+`ga collect --from <uri> --sha <sha>` pulls them home and ingests them — that closes
+the round-trip so cloud results reach the local control plane.
 
 The other CLI verbs round out the loop: `ga data` (generate synthetic data),
-`ga status` (budget ledger + run summary), `ga logs <run_id>`, `ga collect
-<run_id>` (ingest/verify worker artifacts), and `ga cancel <run_id>`.
+`ga status` (budget ledger + run summary), `ga logs <run_id>`, and `ga cancel <run_id>`.
 
 ---
 

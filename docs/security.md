@@ -245,19 +245,25 @@ The canonical loop. Each arrow is a place a human or a gate can say no.
    git SHA, and that the `base_config` actually composes in Hydra. A failing
    report stops here. The agent's claims are never trusted over the repo policy.
 
-3. **Human approval (Tier 2 sign-off).**
-   A human reads the (now-validated) proposal — including *why* (the
-   `rationale` and `hypothesis`) and *how much* (cost) — and approves. For
-   private data / >$5 / uploads / new creds / multi-GPU, this step is mandatory
-   and explicit. The human, not the agent, holds the credentials.
+3. **Human approval (Tier 2 sign-off) — `ga approve <proposal> --by <human>`.**
+   A human reads the (now-validated) proposal — including *why* (the `rationale`
+   and `hypothesis`) and *how much* (cost) — and approves. `ga approve` refuses
+   to sign off a proposal that fails validation, and binds the approval to the
+   proposal's **content hash** and the **current commit** (see
+   `agents/approval.py`): editing the proposal or moving HEAD invalidates it, so
+   you cannot approve text you didn't read or code that since changed. The human,
+   not the agent, runs this and holds the credentials.
 
-4. **Gated launch (preflight + `--yes`).**
-   `ga launch ... --dry-run` first (renders YAML + cost, spends nothing), then
-   `ga launch ... --yes`. Immediately before any spend, `preflight_launch`
-   re-checks provider, data class, per-job and total cost, daily budget, clean
-   tree, exact SHA, and that a dry-run was done. Workers are cloned at the
-   pinned SHA, run on synthetic/public data, and are destroyed afterward; spend
-   is recorded to the ledger.
+4. **Gated launch (preflight + approval + `--yes`).**
+   `ga launch --proposal <p> --dry-run` first (renders YAML + cost, spends
+   nothing), then `ga launch --proposal <p> --yes`. Immediately before any spend,
+   `preflight_launch` re-checks provider, data class, per-job and total cost,
+   daily budget, clean tree, exact SHA, and that a dry-run was done; for a
+   `--proposal` launch it additionally requires a **valid approval record**
+   (`proposal_approved`). Workers are cloned at the pinned SHA, run on
+   synthetic/public data, upload results to `$GUARDIAN_ARTIFACT_URI/<sha>/runs/`,
+   and are destroyed; `ga collect` pulls results home and spend is recorded to
+   the ledger.
 
 **Invariants that hold across the whole loop:**
 - An agent's output can never *directly* cause spend — only a validated,
