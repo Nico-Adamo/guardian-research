@@ -46,17 +46,17 @@ seeds: [0, 1, 2]
 
 data_class: synthetic
 provider: runpod
-gpu: l40s
+gpu: rtx4090
 hours_per_job: 0.4
-per_job_cost_usd: 0.34
-estimated_cost_usd: 9.29
+per_job_cost_usd: 0.18
+estimated_cost_usd: 4.75
 max_cost_usd: 12.00
 
 created_from_runs:
   - modular_sweep_v1_108_runs
 
 reproducibility:
-  git_sha: 8009044ea92d0b2a541cba7c17ec527d50972be1
+  git_sha: ec58d2195221f5b8d3d2a1e55008a669a76a636a
   git_dirty: false
   requires_clean_tree: true
   requires_exact_sha: true

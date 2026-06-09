@@ -31,6 +31,8 @@ from .schemas import Proposal, ValidationReport
 # These are used for *estimates only*; the real bill comes from the provider.
 GPU_HOURLY_USD: dict[str, float] = {
     "l4": 0.50,
+    "rtx4090": 0.44,
+    "a40": 0.44,
     "l40s": 0.86,
     "a10g": 0.75,
     "a100": 1.39,
