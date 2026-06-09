@@ -18,8 +18,11 @@ from ..common.schemas import Proposal
 from ..tracking.ingest import load_runs
 
 # Default arithmetic sweep axes (Hydra override keys).
+# baseline_cosine is INCLUDED in the schedule axis on purpose: the crossover test
+# must compare the catapult candidates against a control trained at the *same*
+# commit, scale, and seeds (matched compute), not against stale local runs.
 DEFAULT_AXES: dict[str, list] = {
-    "schedule": ["onecycle_high_lr", "cyclic_lr", "cyclic_weight_decay"],
+    "schedule": ["baseline_cosine", "onecycle_high_lr", "cyclic_lr", "cyclic_weight_decay"],
     "train.lr": [5.0e-4, 1.0e-3, 2.0e-3],
     "train.weight_decay": [0.01, 0.1],
 }

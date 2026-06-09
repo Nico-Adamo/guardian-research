@@ -6,3 +6,5 @@ n_heads: 4
 d_ff: 256
 dropout: 0.0
 tie_weights: true
+pos_encoding: learned # learned | none | rope  (rope/none enable OOD-length generalization)
+rope_base: 10000.0

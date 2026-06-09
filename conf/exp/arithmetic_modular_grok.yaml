@@ -1,0 +1,22 @@
+# @package _global_
+# Modular-arithmetic grokking — the canonical CPU testbed for H001.
+# Train on a fraction of all (a op b) mod p pairs; the model memorizes the train
+# set fast, then (with heavy weight decay / the right schedule) groks the
+# algorithm and val_acc jumps. The experimental knob is `schedule=` (try
+# cyclic_weight_decay vs baseline_cosine). Heavier WD => grokking sooner.
+experiment: arithmetic_modular_grok
+runner: modular
+
+data:
+  p: 97
+  op: "+"
+  train_frac: 0.4
+
+train:
+  max_steps: 6000
+  batch_size: 512
+  eval_every: 200
+  log_every: 1000
+  lr: 1.0e-3
+  weight_decay: 1.0 # heavy WD is what drives the memorize->grok transition
+  grok_threshold: 0.9

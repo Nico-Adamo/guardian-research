@@ -41,11 +41,17 @@ def run(argv: list[str]) -> int:
 
     md = generate_experiment_report(args.experiment, results, out_path, title=args.title)
 
-    # Experiment-specific addenda (e.g., arithmetic 'curves cross' check).
+    # Experiment-specific addenda.
+    addendum = ""
     if args.experiment == "arithmetic_catapult":
         from ..experiments.arithmetic.analyze import crossover_summary
 
         addendum = "\n" + crossover_summary(results)
+    elif args.experiment == "arithmetic_modular_grok":
+        from ..experiments.modular.analyze import grokking_summary
+
+        addendum = "\n" + grokking_summary(results)
+    if addendum:
         out_path.write_text(md + addendum)
         md = md + addendum
 

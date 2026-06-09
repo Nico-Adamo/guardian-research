@@ -116,6 +116,8 @@ def run(cfg: dict[str, Any]) -> Path:
         d_ff=int(model_cfg_dict.get("d_ff", 256)),
         dropout=float(model_cfg_dict.get("dropout", 0.0)),
         tie_weights=bool(model_cfg_dict.get("tie_weights", True)),
+        pos_encoding=str(model_cfg_dict.get("pos_encoding", "learned")),
+        rope_base=float(model_cfg_dict.get("rope_base", 10000.0)),
     )
     model = TinyTransformer(mcfg).to(device)
 
@@ -142,6 +144,7 @@ def run(cfg: dict[str, Any]) -> Path:
     writer.set_params(
         schedule=sched_dict.get("name"),
         model=model_cfg_dict.get("name", "tiny_transformer"),
+        pos_encoding=mcfg.pos_encoding,
         num_params=model.num_params(),
         base_lr=base_lr,
         base_wd=base_wd,

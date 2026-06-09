@@ -21,8 +21,8 @@ from .ingest import runs_dataframe  # noqa: E402
 # Metric groups to plot if present in the runs.
 PLOT_GROUPS: dict[str, list[str]] = {
     "loss": ["train_loss", "easy_loss", "hard_loss", "val_loss"],
-    "accuracy": ["train_acc", "easy_acc", "hard_acc", "hard_ood_acc", "hard_carry_acc"],
-    "memorization_gap": ["memorization_gap"],
+    "accuracy": ["train_acc", "easy_acc", "hard_acc", "hard_ood_acc", "hard_carry_acc", "val_acc"],
+    "grokking_gap": ["memorization_gap", "grok_gap"],
     "optim": ["lr", "wd"],
     "grad_norm": ["grad_norm"],
 }

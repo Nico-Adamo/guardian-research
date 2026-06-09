@@ -11,6 +11,7 @@ from typing import Any
 
 RUNNERS: dict[str, str] = {
     "arithmetic": "guardian_research.experiments.arithmetic.train",
+    "modular": "guardian_research.experiments.modular.train",
     "dynamic_grokking": "guardian_research.experiments.dynamic_grokking.run",
     "persona": "guardian_research.experiments.persona.train_persona",
 }
