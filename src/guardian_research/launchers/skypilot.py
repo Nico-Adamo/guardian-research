@@ -12,6 +12,7 @@ launch additionally requires the budget preflight to pass AND an explicit
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -60,6 +61,13 @@ def _expand_commands(spec: LaunchSpec, limit: int | None = None) -> list[str]:
     return cmds
 
 
+def _gcs_file_mounts() -> str:
+    key_path = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS", "")
+    if key_path and os.path.isfile(key_path):
+        return f"file_mounts:\n  /gcs_key.json: {key_path}"
+    return ""
+
+
 def render_task_yaml(spec: LaunchSpec) -> str:
     cloud = PROVIDER_TO_CLOUD.get(spec.provider, spec.provider)
     accel = GPU_TO_ACCEL.get(spec.gpu.lower(), spec.gpu.upper())
@@ -76,13 +84,13 @@ resources:
   # autostop so an idle worker never silently burns budget.
   # (set via `sky launch -i <min> --down`; mirrored here for documentation.)
 
-# NB: no `workdir:` and no `file_mounts:` of local paths — code travels by git
-# at an exact SHA only, so no local/private data can leak onto the worker.
+# NB: no `workdir:` — code travels by git at an exact SHA only, so no local/
+# private data can leak onto the worker. Only the GCS key (if set) is mounted.
+{_gcs_file_mounts()}
 envs:
   GUARDIAN_REPO_URL: {spec.repo_url}
   GIT_SHA: {spec.git_sha}
-  # Optional: set GUARDIAN_ARTIFACT_URI to an object store to upload results.
-  GUARDIAN_ARTIFACT_URI: ""
+  GUARDIAN_ARTIFACT_URI: {os.environ.get("GUARDIAN_ARTIFACT_URI", "")}
 
 setup: |
   set -euo pipefail
@@ -92,6 +100,10 @@ setup: |
   curl -LsSf https://astral.sh/uv/install.sh | sh
   export PATH="$HOME/.local/bin:$PATH"
   uv sync
+  # GCS auth: if a service account key is mounted, activate it.
+  if [ -f /gcs_key.json ]; then
+    gcloud auth activate-service-account --key-file=/gcs_key.json 2>/dev/null || true
+  fi
 
 run: |
   set -euo pipefail
