@@ -3,8 +3,10 @@
 - **ID:** H001
 - **Status:** open (tooling implemented; not yet tested at a scale that could confirm or refute)
 - **Source:** `planning/guardian/llm-catapult.md` — "Prototyping With Arithmetic", "Cyclical Learning Rates"
-- **Owns experiment:** `arithmetic_catapult` (`src/guardian_research/experiments/arithmetic/`, runner key `arithmetic`)
-- **Primary metric:** `final_hard_acc` (also `final_hard_ood_acc`, `final_hard_carry_acc`, `final_memorization_gap`)
+- **Owns experiments:**
+  - `arithmetic_catapult` (base-10 addition; runner `arithmetic`) — the **length-extrapolation** test (`final_hard_ood_acc`). This is a **GPU-scale** test (see probe below).
+  - `arithmetic_modular_grok` (modular arithmetic; runner `modular`) — the **cheap CPU grokking** testbed (`final_val_acc`, `grok_step`, `grok_gap`), the canonical memorize→generalize transition from the grokking literature.
+- **Primary metric:** `final_hard_ood_acc` (base-10, GPU) and `final_val_acc` / `grok_step` (modular, CPU)
 
 > This file pre-registers a falsifiable claim and its kill criteria. It describes
 > *what we will measure and what would count as evidence*, not a result. As of this
@@ -60,6 +62,33 @@ would additionally show the gain is concentrated in `hard_ood_acc` / `hard_carry
   (the data generator guarantees hard operand lengths are strictly longer than train
   lengths), so memorization cannot explain a gain.
 
+## Testbeds & initial probes (honest, CPU-scale)
+
+Two probes were run to find a regime where the metric can actually *move* (see
+`reports/postmortems/PM001-position-and-grokking-probes.md`):
+
+1. **Base-10 length extrapolation is pinned at CPU scale.** Training on 1–3 digit
+   addition and testing 4–5 digits gives `hard_ood_acc = 0.000` for **all** of
+   `learned`, `none`, and `rope` positional schemes (rope learns in-distribution
+   best at 0.98 but still does not extrapolate). Length generalization on addition
+   needs wider training ranges / scale — so `arithmetic_catapult`'s OOD metric is a
+   **GPU-scale** experiment (`+exp=arithmetic_catapult_gpu model=small_transformer`,
+   which now defaults to `rope` so extrapolation is at least *possible*). The
+   in-distribution / carry-heavy splits saturate to ~1.0 for every schedule, so they
+   do **not** discriminate cheaply.
+2. **Modular arithmetic is the movable CPU testbed.** On `(a+b) mod 97`, the metric
+   is strongly schedule-sensitive: `baseline_cosine` (wd=1.0) groks to `val_acc=1.0`
+   by ~step 600, while `cyclic_weight_decay` at its default 20× multiplier
+   (= peak wd≈20 here) over-regularizes and never learns (`val_acc=0.028`). That the
+   final metric ranges 0.03↔1.00 by schedule is the point: H001 is **testable** here.
+   The immediate lesson — WD-schedule multipliers are relative to `base_wd` and must
+   be co-tuned — is itself a knob for the sweep, not a result.
+
+The canonical *delayed* grok (long memorization plateau, then a late val jump) needs
+`train_frac` / `wd` / model-size tuning; finding the regime where a high-LR/cyclic
+schedule groks **sooner or more robustly** than baseline is the H001 research the
+propose→sweep loop now drives.
+
 ## STOP CONDITIONS
 
 Per-shard (cheap, automatic):
@@ -74,9 +103,10 @@ Sweep-level (decision points):
   (The current smoke snapshot in `reports/runs/smoke_arithmetic.md` shows
   Δ = +0.000 — i.e. not yet beaten — at toy scale; this is *not* a refutation, only an
   un-finished test, because compute and seed coverage are far below what the claim needs.)
-- **Scale-honesty stop:** do not escalate to larger models / more compute until a
-  crossover is observed *at small scale*. If small scale cannot show even a hint, more
-  compute is unlikely to be the missing ingredient.
+- **Scale-honesty stop:** do not escalate to GPU base-10 length extrapolation until a
+  schedule effect is observed on the **cheap modular CPU testbed** (where the metric is
+  movable). If no schedule reliably groks sooner/more robustly than baseline there,
+  more compute on base-10 is unlikely to be the missing ingredient.
 - **Budget stop:** respect the per-job and total-cost ceilings in the active proposal
   (`reports/proposals/next_arith_sweep.yaml`); halt the sweep at the total-cost ceiling
   regardless of result.

@@ -34,44 +34,58 @@ The "spine" (24 tests + the CLI milestone sequence) and one full experiment vert
   (cloud path — dry-run / budget-gated).
 - **Agents:** `agents/propose.py` (drafts a next-sweep `Proposal` from prior runs),
   `agents/validate_proposal.py` (budget + data-class + reproducibility checks).
-- **Arithmetic vertical (the one fully-built experiment — owns H001):**
-  `experiments/arithmetic/{train,analyze}.py`, `data/arithmetic.py`
-  (`CharTokenizer`, `build_splits`, easy/hard/OOD/carry-heavy splits),
-  `models/tiny_transformer.py`, `schedules/schedules.py`
+- **Arithmetic vertical (owns H001):** `experiments/arithmetic/{train,analyze}.py`,
+  `data/arithmetic.py` (`CharTokenizer`, `build_splits`, easy/hard/OOD/carry-heavy splits),
+  `models/tiny_transformer.py` (now supports `pos_encoding = learned|none|rope` — rope/none
+  enable OOD-length extrapolation), `schedules/schedules.py`
   (baseline cosine, one-cycle high-LR, cyclic LR, cyclic WD).
+- **Modular-grokking testbed (also H001, cheap CPU):**
+  `experiments/modular/{train,analyze}.py`, `data/modular.py` — `(a op b) mod p` with the
+  memorize→grok metrics (`val_acc`, `grok_step`, `grok_gap`). Runner key `modular`,
+  `+exp=arithmetic_modular_grok`.
+- **Dynamic-grokking harness (owns H002):** `experiments/dynamic_grokking/run.py` +
+  `ga grok` — runs a CPU toy comparing dynamic evaluation vs static sampling at equal
+  compute. Real `full`/`last_layer` inner updates; `lora` target is an honest stub.
+- **Persona pipeline (owns H003):** `experiments/persona/*` + `ga persona` — synthetic
+  corpus, PRINCIPAL.md, evals, active questions, and a base/RAG/LoRA/dynamic-eval
+  comparison. base + RAG-only are real; LoRA + dynamic-eval are honest stubs; judge is mock.
 
-## What is STUBBED (honest stubs — interface reserved, no logic yet)
+## What is STUBBED (honest stubs — flagged in code)
 
-These are empty `__init__.py` placeholders; the runner keys exist in
-`launchers/local.py` but the `run()` entry points are not implemented:
+The *experiments* above run; these *parts within them* are intentionally not built:
 
-- **`experiments/dynamic_grokking/`** — owns **H002** (dynamic eval vs. static sampling
-  at matched FLOPs). Runner key `dynamic_grokking` reserved; no harness yet.
-- **`experiments/persona/`** — owns **H003** (active-question personalization). Runner key
-  `persona` / entry `train_persona.run` reserved; no harness yet.
-- **`experiments/cifar_robustness/`** — robustness micro-lab from the research program;
-  no hypothesis file yet, no code yet.
+- **`lora` inner-update target** in dynamic grokking (`full`/`last_layer` work).
+- **LoRA & dynamic-eval persona variants** (gated behind the `[llm]` extra; reuse retrieval
+  and record `is_stub=1`) and the **mock pairwise judge** (stylometric proxy, `judge_is_mock=1`).
+- **Private→cloud encryption pipeline** (documented in `docs/security.md §4/§10`; the flag
+  gates a path that does not exist — private data stays local).
+- **`experiments/cifar_robustness/`** — robustness micro-lab; placeholder, no code/hypothesis yet.
+- **Cloud result round-trip** — worker→home upload + a real `ga collect` (in progress).
 
 ## What has been RUN
 
-- **CPU smoke / tooling-validation only.** `reports/runs/smoke_arithmetic.md` ingested
-  **9** toy `arithmetic_catapult` runs (baseline_cosine, cyclic_lr, cyclic_weight_decay,
-  onecycle_high_lr; seed 0; ~152k-param TinyTransformer), with figures under
-  `reports/figures/arithmetic_catapult/`.
-- **Crossover status:** Δ(best non-baseline − best baseline) on the hard split =
-  **+0.000** — the baseline is **not yet** beaten. Per H001 this is **not a refutation**:
-  it is an unfinished test (single seed, toy compute, well below what the claim needs).
-  Several runs collapsed to 0 accuracy, consistent with toy-scale instability.
-- **No GPU sweep, no matched-compute crossover study, no dynamic-eval run, no persona
-  run** has been executed.
+- **CPU tooling-validation + two H001 probes only** (see
+  `reports/postmortems/PM001-position-and-grokking-probes.md`):
+  - `arithmetic_catapult` (base-10): 4 schedules at seed 0; `final_hard_acc` Δ = **+0.000**
+    (baseline not beaten — unfinished test, not a refutation). Length-OOD accuracy is
+    **0.000 for learned/none/rope** at CPU scale → reclassified as a GPU experiment.
+  - `arithmetic_modular_grok` (`(a+b) mod 97`): the metric is strongly schedule-sensitive
+    — `baseline_cosine` groks (`val_acc=1.0` @ step ~600); `cyclic_weight_decay` at its
+    default 20× WD multiplier over-regularizes (`val_acc=0.028`). Report:
+    `reports/runs/arithmetic_modular_grok.md`.
+- **`ga grok` and `ga persona` toys** ran successfully (CPU); dynamic-eval edged static at
+  toy scale and RAG-only lifted persona preference accuracy — both recorded honestly, not
+  as claims.
+- **No GPU sweep, no matched-compute multi-seed study, no cloud run** has been executed.
+  (Cloud result round-trip is being closed in Phase 2.)
 
 ## Hypotheses (claims, not findings)
 
 | ID | Claim (short) | Experiment | Status |
 |----|---------------|------------|--------|
-| H001 | Cyclic high-LR/WD schedules improve HARD arithmetic scaling ("curves cross") | `arithmetic_catapult` | tooling implemented; **not yet tested at adequate scale** |
-| H002 | Dynamic eval beats static sampling at equal compute | `dynamic_grokking` | **stub**; harness not built |
-| H003 | Active-question personalization > passive finetuning per query | `persona` | **stub**; harness not built |
+| H001 | Cyclic high-LR/WD schedules improve HARD arithmetic scaling ("curves cross") | `arithmetic_catapult` (GPU length-OOD) + `arithmetic_modular_grok` (CPU grokking) | toy testbeds run; metric movable on modular; **not yet tested at adequate scale/seeds** |
+| H002 | Dynamic eval beats static sampling at equal compute | `dynamic_grokking` | CPU toy harness implemented; **not yet tested at scale** |
+| H003 | Active-question personalization > passive finetuning per query | `persona` | CPU toy harness implemented (base/RAG real; LoRA/dyn-eval stubbed); **not yet tested** |
 
 See `planning/hypotheses/` for each claim's metric, expected signal, ablation, and
 pre-registered STOP / kill conditions. See `planning/funding-demo-checklist.md` for the
