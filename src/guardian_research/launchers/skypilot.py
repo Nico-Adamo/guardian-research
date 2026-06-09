@@ -99,9 +99,18 @@ run: |
   export PATH="$HOME/.local/bin:$PATH"
   export GUARDIAN_REPO_ROOT="$PWD"
 {run_block}
-  # upload results if an artifact store is configured (else they die with the worker)
+  # Upload results home, else they die with the worker. Per-SHA prefix so the
+  # control plane can `ga collect --from $GUARDIAN_ARTIFACT_URI --sha $GIT_SHA`.
   if [ -n "$GUARDIAN_ARTIFACT_URI" ]; then
-    echo "would sync runs/ -> $GUARDIAN_ARTIFACT_URI"
+    dest="$GUARDIAN_ARTIFACT_URI/$GIT_SHA/runs/"
+    echo "uploading runs/ -> $dest"
+    case "$GUARDIAN_ARTIFACT_URI" in
+      s3://*)  aws s3 sync runs/ "$dest" ;;
+      gs://*)  gsutil -m rsync -r runs/ "$dest" ;;
+      *)       mkdir -p "$dest" 2>/dev/null || true; rsync -az runs/ "$dest" ;;
+    esac
+  else
+    echo "WARNING: GUARDIAN_ARTIFACT_URI unset — results will be LOST when this worker dies."
   fi
 """
 

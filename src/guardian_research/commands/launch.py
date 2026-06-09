@@ -1,13 +1,19 @@
 """`ga launch` — render/dry-run a cloud job, or (gated) submit a real one.
 
-Safety invariants enforced here:
-  * ``--dry-run`` spends nothing and records that a dry-run happened.
-  * a REAL launch requires ``--yes`` AND passes the budget preflight (per-job +
-    daily caps, allowed provider, allowed data class, clean tree, exact SHA,
-    and a prior dry-run).
-  * even when all gates pass, actual submission only happens when
-    ``GUARDIAN_ALLOW_REAL_LAUNCH=1`` and the ``[cloud]`` extra is installed;
-    otherwise the exact ``sky launch`` command is printed for a human to run.
+Two ways to specify what to launch:
+  * ad-hoc:        `ga launch --dry-run +exp=... sweep=...`
+  * from a proposal: `ga launch --dry-run --proposal reports/proposals/x.yaml`
+    (the closed loop: propose -> validate -> approve -> launch). A real launch
+    from a proposal additionally requires a valid approval record.
+
+Safety invariants:
+  * `--dry-run` spends nothing and records that a dry-run happened.
+  * a REAL launch requires `--yes` AND passes the budget preflight (per-job +
+    daily caps, allowed provider/data class, clean tree, exact SHA, prior dry-run);
+    and when launched `--proposal`, a valid (content+commit-bound) approval.
+  * even with all gates green, submission only happens when
+    `GUARDIAN_ALLOW_REAL_LAUNCH=1` and the `[cloud]` extra is installed; otherwise
+    the exact `sky launch` command is printed for a human to run.
 """
 
 from __future__ import annotations
@@ -15,7 +21,7 @@ from __future__ import annotations
 import argparse
 import json
 
-from ..common.budget import BudgetPolicy, estimate_cost
+from ..common.budget import BudgetGuard, BudgetPolicy, estimate_cost
 from ..common.env_info import current_sha, git_info
 from ..common.hydra_utils import compose_config, split_overrides, to_container
 from ..common.logging import console
@@ -23,7 +29,7 @@ from ..common.paths import runs_dir
 from ..launchers.skypilot import LaunchSpec, dry_run_text, render_task_yaml
 
 NAME = "launch"
-HELP = "Dry-run (default-safe) or gated real cloud launch: --dry-run --provider skypilot +exp=... sweep=..."
+HELP = "Dry-run (default-safe) or gated real cloud launch: --dry-run [--proposal P | +exp=... sweep=...]"
 
 
 def _marker_path():
@@ -53,12 +59,43 @@ def _dry_run_done(key: str) -> bool:
         return False
 
 
+def _spec_from_proposal(proposal_path: str, repo_url: str):
+    """Build a LaunchSpec + costs from a Proposal YAML."""
+    from ..agents.validate_proposal import load_proposal
+
+    p = load_proposal(proposal_path)
+    experiment, fixed = None, []
+    for tok in p.base_config.split():
+        key = tok.split("=", 1)[0].lstrip("+~")
+        if key == "exp":
+            experiment = tok.split("=", 1)[1]
+        elif key != "sweep":
+            fixed.append(tok)
+    spec = LaunchSpec(
+        experiment=experiment or p.experiment,
+        overrides=fixed,
+        provider=p.provider,
+        gpu=p.gpu,
+        num_gpus=1,
+        git_sha=current_sha(),
+        repo_url=repo_url,
+        sweep_name=p.name,
+        sweep_axes={k: list(v) for k, v in p.sweep.items()},
+        seeds=list(p.seeds),
+        hours_per_job=p.hours_per_job,
+    )
+    per_job = estimate_cost(1, hours_per_job=p.hours_per_job, gpu=p.gpu)
+    total = round(per_job * spec.grid_size(), 2)
+    return spec, per_job, total, p.max_cost_usd, p.provider
+
+
 def run(argv: list[str]) -> int:
     flags, overrides = split_overrides(argv)
     policy = BudgetPolicy.load()
 
     ap = argparse.ArgumentParser(prog="ga launch", add_help=True)
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--proposal", default=None, help="launch from an approved proposal YAML")
     ap.add_argument("--provider", default="skypilot", help="launcher: skypilot|local")
     ap.add_argument("--cloud", default=None, help="cloud provider (runpod|lambda|modal)")
     ap.add_argument("--gpu", default=None)
@@ -69,57 +106,64 @@ def run(argv: list[str]) -> int:
     ap.add_argument("--yes", action="store_true", help="confirm a REAL (money-spending) launch")
     args = ap.parse_args(flags)
 
-    cfg = to_container(compose_config(overrides))
-    experiment = cfg.get("experiment")
-    if not experiment:
-        console.print("[red]No experiment.[/red] Pass +exp=<name> (e.g. +exp=arithmetic_catapult).")
-        return 2
+    if args.proposal:
+        spec, per_job, total, max_total, cloud = _spec_from_proposal(args.proposal, args.repo_url)
+        experiment, sweep_name = spec.experiment, spec.sweep_name
+    else:
+        cfg = to_container(compose_config(overrides))
+        experiment = cfg.get("experiment")
+        if not experiment:
+            console.print("[red]No experiment.[/red] Pass +exp=<name> or --proposal <path>.")
+            return 2
+        sweep = cfg.get("sweep") or {}
+        axes = {k: list(v) for k, v in (sweep.get("axes") or {}).items()}
+        seeds = list(sweep.get("seeds") or [int(cfg.get("seed", 0))])
+        sweep_name = sweep.get("name") if sweep.get("name") not in (None, "none") else None
+        gpu = args.gpu or sweep.get("gpu", "l40s")
+        cloud = args.cloud or sweep.get("provider") or (policy.allowed_providers[0] if policy.allowed_providers else "runpod")
+        hours_per_job = float(sweep.get("hours_per_job", 0.25))
+        fixed_overrides = [o for o in overrides if o.split("=")[0].lstrip("+~") not in ("exp", "sweep")]
+        spec = LaunchSpec(
+            experiment=experiment, overrides=fixed_overrides, provider=cloud, gpu=gpu,
+            num_gpus=args.num_gpus, git_sha=current_sha(), repo_url=args.repo_url,
+            sweep_name=sweep_name, sweep_axes=axes, seeds=seeds, hours_per_job=hours_per_job,
+        )
+        per_job = estimate_cost(1, hours_per_job=hours_per_job, gpu=gpu)
+        total = round(per_job * spec.grid_size(), 2)
+        max_total = args.max_cost_usd
 
-    sweep = cfg.get("sweep") or {}
-    axes = {k: list(v) for k, v in (sweep.get("axes") or {}).items()}
-    seeds = list(sweep.get("seeds") or [int(cfg.get("seed", 0))])
-    sweep_name = sweep.get("name") if sweep.get("name") not in (None, "none") else None
-    gpu = args.gpu or sweep.get("gpu", "l40s")
-    cloud = args.cloud or sweep.get("provider") or (policy.allowed_providers[0] if policy.allowed_providers else "runpod")
-    hours_per_job = float(sweep.get("hours_per_job", 0.25))
-
-    fixed_overrides = [o for o in overrides if o.split("=")[0].lstrip("+~") not in ("exp", "sweep")]
-
-    spec = LaunchSpec(
-        experiment=experiment,
-        overrides=fixed_overrides,
-        provider=cloud,
-        gpu=gpu,
-        num_gpus=args.num_gpus,
-        git_sha=current_sha(),
-        repo_url=args.repo_url,
-        sweep_name=sweep_name,
-        sweep_axes=axes,
-        seeds=seeds,
-        hours_per_job=hours_per_job,
-    )
-    per_job = estimate_cost(1, hours_per_job=hours_per_job, gpu=gpu)
-    total = round(per_job * spec.grid_size(), 2)
     marker_key = f"{experiment}:{sweep_name or 'single'}"
 
     if args.dry_run:
-        console.print(dry_run_text(spec, per_job, total, args.max_cost_usd))
+        console.print(dry_run_text(spec, per_job, total, max_total))
+        if args.proposal:
+            from ..agents.approval import approval_status
+
+            ok, reason = approval_status(args.proposal)
+            console.print(f"approval: {'✓ ' if ok else '✗ '}{reason}")
+            if not ok:
+                console.print(f"  → run [bold]ga approve {args.proposal} --by <you>[/bold]")
         _record_dry_run(marker_key)
         return 0
 
     # ---- REAL launch path: gated ---------------------------------------- #
-    from ..common.budget import BudgetGuard
-
     report = BudgetGuard(policy).preflight_launch(
         provider=cloud,
         data_class=args.data_class,
         per_job_cost_usd=per_job,
         total_cost_usd=total,
-        max_total_cost_usd=args.max_cost_usd,
+        max_total_cost_usd=max_total,
         git_dirty=git_info().dirty,
         git_sha=current_sha(),
         dry_run_done=_dry_run_done(marker_key),
     )
+    # Proposal launches additionally require a valid approval record.
+    if args.proposal:
+        from ..agents.approval import approval_status
+
+        ok, reason = approval_status(args.proposal)
+        report.add("proposal_approved", ok, reason)
+
     _print_report(report)
     if not report.passed:
         console.print("[red]✗ budget/safety preflight failed — nothing launched.[/red]")
@@ -153,7 +197,6 @@ def _maybe_submit(spec: LaunchSpec) -> int:
         console.print(yaml_text)
         return 0
 
-    # Opt-in real submission.
     import subprocess
     import tempfile
 

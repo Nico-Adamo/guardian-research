@@ -42,3 +42,6 @@ htmlcov/
 # live under data/persona_synthetic/ which is intentionally NOT ignored.
 /data/persona_private/
 *.principal.private.md
+
+# Approval records: local, commit-bound human sign-offs (regenerated per approval)
+*.approved.json
