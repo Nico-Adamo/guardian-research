@@ -83,9 +83,7 @@ def lr_wd_at(step: int, total_steps: int, cfg: ScheduleConfig) -> tuple[float, f
         lr = floor + cos * (peak - floor)
         return lr, cfg.base_wd
 
-    if name == "cyclic_weight_decay":
-        # LR mild-cosine, WD oscillates: low while learning, spiking high to
-        # "shrink the weights" — the artificial analogue of sleep.
+    if name in ("cyclic_weight_decay", "cyclic_wd_tuned"):
         wu = _warmup_factor(step, total, cfg.warmup_frac)
         lr = cfg.base_lr * wu if wu is not None else cfg.base_lr
         cycle_len = total / max(1, cfg.n_cycles)

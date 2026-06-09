@@ -6,7 +6,7 @@ hypothesis: >-
   HARD arithmetic (OOD-length + carry-heavy) than baseline_cosine at matched
   compute — "the curves cross" on the hard split.
 expected_signal: >-
-  cyclic_weight_decay's final_hard_acc exceeds baseline_cosine's by a margin
+  cyclic_wd_tuned's final_hard_acc exceeds baseline_cosine's by a margin
   that holds across 3 seeds. Secondary: onecycle_high_lr may also cross at
   moderate WD. The signal should appear in hard_ood_acc (length extrapolation)
   and/or hard_carry_acc (carry-chain generalization).
@@ -29,18 +29,16 @@ base_config: +exp=arithmetic_catapult_gpu model=small_transformer
 sweep:
   schedule:
     - baseline_cosine
-    - cyclic_weight_decay
+    - cyclic_wd_tuned
     - onecycle_high_lr
   train.weight_decay:
     - 0.01
     - 0.05
     - 0.15
 
-# Co-tuning note (applied as schedule overrides for cyclic_weight_decay shards):
-#   wd=0.01 → schedule.wd_max_mult=5.0, schedule.wd_min_mult=0.1 (peak WD=0.05)
-#   wd=0.05 → schedule.wd_max_mult=3.0, schedule.wd_min_mult=0.1 (peak WD=0.15)
-#   wd=0.15 → schedule.wd_max_mult=2.0, schedule.wd_min_mult=0.1 (peak WD=0.30)
-# These keep peak WD in the 0.05-0.30 range where cyclic-WD excels (per CPU sweep).
+# cyclic_wd_tuned bakes in wd_max_mult=3.0 (vs the default 20.0), so peak WD is
+# always 3× base_wd — 0.03, 0.15, or 0.45 for the three WD settings. This keeps
+# it in the "moderate periodic regularization" range that worked on CPU.
 
 seeds: [0, 1, 2]
 

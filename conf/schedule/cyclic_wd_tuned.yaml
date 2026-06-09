@@ -1,0 +1,12 @@
+# Cyclic weight decay with a CO-TUNED multiplier (wd_max_mult=3.0).
+# The default cyclic_weight_decay uses wd_max_mult=20, which is catastrophic
+# when base_wd > 0.01 (see reports/postmortems/PM001 and modular sweep v1).
+# This variant keeps peak WD at 3× base — enough periodic regularization
+# pressure ("sleep") without crushing learning.
+name: cyclic_wd_tuned
+base_lr: ${train.lr}
+base_wd: ${train.weight_decay}
+warmup_frac: 0.05
+n_cycles: 4
+wd_min_mult: 0.1
+wd_max_mult: 3.0
