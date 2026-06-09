@@ -100,6 +100,10 @@ setup: |
   curl -LsSf https://astral.sh/uv/install.sh | sh
   export PATH="$HOME/.local/bin:$PATH"
   uv sync
+  # Reinstall PyTorch with CUDA support (default PyPI wheel is CPU-only).
+  if command -v nvidia-smi &>/dev/null; then
+    uv pip install torch --index-url https://download.pytorch.org/whl/cu121 --reinstall
+  fi
   # GCS auth: if a service account key is mounted, activate it.
   if [ -f /gcs_key.json ]; then
     gcloud auth activate-service-account --key-file=/gcs_key.json 2>/dev/null || true
