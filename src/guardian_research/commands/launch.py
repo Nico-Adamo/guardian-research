@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 
 from ..common.budget import BudgetGuard, BudgetPolicy, estimate_cost
 from ..common.env_info import current_sha, git_info
@@ -102,7 +103,7 @@ def run(argv: list[str]) -> int:
     ap.add_argument("--num-gpus", type=int, default=1)
     ap.add_argument("--max-cost-usd", type=float, default=policy.max_daily_cost_usd)
     ap.add_argument("--data-class", default="synthetic")
-    ap.add_argument("--repo-url", default="${GUARDIAN_REPO_URL}")
+    ap.add_argument("--repo-url", default=os.environ.get("GUARDIAN_REPO_URL", ""))
     ap.add_argument("--yes", action="store_true", help="confirm a REAL (money-spending) launch")
     args = ap.parse_args(flags)
 

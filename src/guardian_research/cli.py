@@ -12,12 +12,32 @@ the per-command modules handle the split via ``common.hydra_utils``.
 from __future__ import annotations
 
 import importlib
+import os
 import pkgutil
 import sys
+from pathlib import Path
 from types import ModuleType
 
 from . import commands as commands_pkg
 from .common.logging import console, get_logger
+
+
+def _load_dotenv() -> None:
+    """Load .env from the repo root into os.environ (won't overwrite existing)."""
+    root = Path(__file__).resolve().parents[2]
+    env_file = root / ".env"
+    if not env_file.is_file():
+        return
+    for line in env_file.read_text().splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        key, _, value = line.partition("=")
+        key = key.strip()
+        if not key:
+            continue
+        value = value.strip().strip("'\"")
+        os.environ.setdefault(key, value)
 
 log = get_logger("ga")
 
@@ -54,6 +74,7 @@ def _print_help(registry: dict[str, ModuleType]) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
+    _load_dotenv()
     argv = list(sys.argv[1:] if argv is None else argv)
     registry = discover_commands()
 

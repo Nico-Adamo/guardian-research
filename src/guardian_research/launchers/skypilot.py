@@ -88,9 +88,9 @@ resources:
 # private data can leak onto the worker. Only the GCS key (if set) is mounted.
 {_gcs_file_mounts()}
 envs:
-  GUARDIAN_REPO_URL: {spec.repo_url}
+  GUARDIAN_REPO_URL: "{spec.repo_url}"
   GIT_SHA: {spec.git_sha}
-  GUARDIAN_ARTIFACT_URI: {os.environ.get("GUARDIAN_ARTIFACT_URI", "")}
+  GUARDIAN_ARTIFACT_URI: "{os.environ.get('GUARDIAN_ARTIFACT_URI', '')}"
 
 setup: |
   set -euo pipefail
