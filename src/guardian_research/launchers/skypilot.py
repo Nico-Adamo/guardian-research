@@ -106,7 +106,7 @@ setup: |
   # compatible with any 12.x driver). --no-deps avoids touching triton/sympy/etc.
   if command -v nvidia-smi &>/dev/null; then
     nvidia-smi
-    uv pip install torch --index-url https://download.pytorch.org/whl/cu118 --no-deps
+    uv pip install torch --index-url https://download.pytorch.org/whl/cu124 --no-deps --reinstall
     uv run python -c "import torch; print(f'CUDA OK: {{torch.cuda.get_device_name(0)}} | torch={{torch.__version__}}')"
   fi
   # GCS auth: if a service account key is mounted, activate it.
