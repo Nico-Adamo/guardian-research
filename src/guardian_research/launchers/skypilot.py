@@ -43,7 +43,8 @@ class LaunchSpec:
 
 def _expand_commands(spec: LaunchSpec, limit: int | None = None) -> list[str]:
     """Expand the sweep into explicit `ga train` commands (illustrative for dry-run)."""
-    base = " ".join(["uv run ga train", f"+exp={spec.experiment}", *spec.overrides])
+    device_override = "device=cuda" if spec.gpu.lower() != "cpu" else ""
+    base = " ".join(filter(None, ["uv run ga train", f"+exp={spec.experiment}", *spec.overrides, device_override]))
     if not spec.sweep_axes:
         return [f"{base} seed={s}" for s in spec.seeds]
     # Cartesian product over axes x seeds.
