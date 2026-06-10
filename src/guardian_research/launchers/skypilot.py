@@ -101,12 +101,11 @@ setup: |
   curl -LsSf https://astral.sh/uv/install.sh | sh
   export PATH="$HOME/.local/bin:$PATH"
   uv sync
-  # PyPI torch is built for the latest CUDA (12.6+), which requires a very new driver.
-  # Most cloud GPUs have older drivers (CUDA 12.0-12.4). Swap in cu118 torch (backward-
-  # compatible with any 12.x driver). --no-deps avoids touching triton/sympy/etc.
+  # PyPI torch is CPU-only; swap in a CUDA build matching the worker's driver.
+  # Lambda A10s ship driver 570.x (CUDA 12.8), so use cu128 index.
   if command -v nvidia-smi &>/dev/null; then
     nvidia-smi
-    uv pip install torch --index-url https://download.pytorch.org/whl/cu124 --no-deps --reinstall
+    uv pip install torch --index-url https://download.pytorch.org/whl/cu128 --no-deps --reinstall
     uv run python -c "import torch; print(f'CUDA OK: {{torch.cuda.get_device_name(0)}} | torch={{torch.__version__}}')"
   fi
   # GCS auth: if a service account key is mounted, activate it.
