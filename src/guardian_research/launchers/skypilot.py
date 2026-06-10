@@ -103,9 +103,11 @@ setup: |
   uv sync
   # PyPI torch is CPU-only; swap in a CUDA build matching the worker's driver.
   # Lambda A10s ship driver 570.x (CUDA 12.8), so use cu128 index.
+  # After the swap, set UV_NO_SYNC so `uv run` won't revert to the CPU wheel.
   if command -v nvidia-smi &>/dev/null; then
     nvidia-smi
     uv pip install torch --index-url https://download.pytorch.org/whl/cu128 --no-deps --reinstall
+    export UV_NO_SYNC=1
     uv run python -c "import torch; print(f'CUDA OK: {{torch.cuda.get_device_name(0)}} | torch={{torch.__version__}}')"
   fi
   # GCS auth: if a service account key is mounted, activate it.
@@ -117,6 +119,7 @@ run: |
   set -euo pipefail
   cd repo
   export PATH="$HOME/.local/bin:$PATH"
+  export UV_NO_SYNC=1
   export GUARDIAN_REPO_ROOT="$PWD"
 {run_block}
   # Upload results home, else they die with the worker. Per-SHA prefix so the
