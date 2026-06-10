@@ -76,7 +76,7 @@ class CausalSelfAttention(nn.Module):
         self.proj = nn.Linear(cfg.d_model, cfg.d_model)
         self.dropout = cfg.dropout
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, attn_mask: torch.Tensor | None = None) -> torch.Tensor:
         b, t, c = x.shape
         q, k, v = self.qkv(x).split(c, dim=2)
         q = q.view(b, t, self.n_heads, self.head_dim).transpose(1, 2)
@@ -86,9 +86,14 @@ class CausalSelfAttention(nn.Module):
             cos, sin = _rope_cos_sin(t, self.head_dim, self.rope_base, x.device, x.dtype)
             q = _apply_rope(q, cos, sin)
             k = _apply_rope(k, cos, sin)
-        y = F.scaled_dot_product_attention(
-            q, k, v, is_causal=True, dropout_p=self.dropout if self.training else 0.0
-        )
+        if attn_mask is not None:
+            y = F.scaled_dot_product_attention(
+                q, k, v, attn_mask=attn_mask, dropout_p=self.dropout if self.training else 0.0
+            )
+        else:
+            y = F.scaled_dot_product_attention(
+                q, k, v, is_causal=True, dropout_p=self.dropout if self.training else 0.0
+            )
         y = y.transpose(1, 2).contiguous().view(b, t, c)
         return self.proj(y)
 
@@ -106,8 +111,8 @@ class Block(nn.Module):
             nn.Linear(cfg.d_ff, cfg.d_model),
         )
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = x + self.attn(self.ln1(x))
+    def forward(self, x: torch.Tensor, attn_mask: torch.Tensor | None = None) -> torch.Tensor:
+        x = x + self.attn(self.ln1(x), attn_mask=attn_mask)
         x = x + self.mlp(self.ln2(x))
         return x
 
@@ -149,7 +154,7 @@ class TinyTransformer(nn.Module):
             total += p.numel()
         return total
 
-    def forward(self, idx: torch.Tensor) -> torch.Tensor:
+    def forward(self, idx: torch.Tensor, attn_mask: torch.Tensor | None = None) -> torch.Tensor:
         b, t = idx.shape
         if self.pos_emb is not None and t > self.cfg.max_len:
             raise ValueError(f"sequence length {t} exceeds max_len {self.cfg.max_len} (learned positions)")
@@ -159,7 +164,7 @@ class TinyTransformer(nn.Module):
             x = x + self.pos_emb(pos)
         x = self.drop(x)
         for block in self.blocks:
-            x = block(x)
+            x = block(x, attn_mask=attn_mask)
         return self.lm_head(self.ln_f(x))
 
     @torch.no_grad()
@@ -179,6 +184,73 @@ class TinyTransformer(nn.Module):
             if nxt == eos_id:
                 break
         return ids[len(prompt_ids):]
+
+    def _make_causal_pad_mask(self, valid: torch.Tensor) -> torch.Tensor:
+        """Build combined causal + padding mask for scaled_dot_product_attention.
+
+        Args:
+            valid: (B, T) boolean tensor, True = real token, False = padding.
+
+        Returns:
+            (B, 1, T, T) float mask: 0.0 where attention is allowed, -inf elsewhere.
+        """
+        b, t = valid.shape
+        causal = torch.tril(torch.ones(t, t, device=valid.device, dtype=torch.bool))
+        key_valid = valid.unsqueeze(1).unsqueeze(2)  # (B, 1, 1, T)
+        combined = causal.unsqueeze(0) & key_valid  # (B, 1, T, T)
+        return torch.where(combined, 0.0, float("-inf"))
+
+    @torch.no_grad()
+    def generate_greedy_batch(
+        self,
+        prompts: list[list[int]],
+        max_new_tokens: int,
+        eos_id: int,
+        pad_id: int,
+    ) -> list[list[int]]:
+        """Batched greedy decode from a list of prompt token-ID lists."""
+        self.eval()
+        if not prompts:
+            return []
+        device = next(self.parameters()).device
+        batch_size = len(prompts)
+        max_prompt_len = max(len(p) for p in prompts)
+        window_cap = self.cfg.max_len if self.pos_emb is not None else 10**9
+
+        # Left-pad prompts so generation positions align at the right edge.
+        ids = torch.full((batch_size, max_prompt_len), pad_id, dtype=torch.long, device=device)
+        for i, p in enumerate(prompts):
+            ids[i, max_prompt_len - len(p) :] = torch.tensor(p, dtype=torch.long, device=device)
+
+        finished = torch.zeros(batch_size, dtype=torch.bool, device=device)
+        gen_start = max_prompt_len
+
+        for _ in range(max_new_tokens):
+            # Window: take rightmost window_cap tokens.
+            window = ids[:, -window_cap:]
+            valid = window != pad_id
+            attn_mask = self._make_causal_pad_mask(valid)
+            logits = self(window, attn_mask=attn_mask)
+            next_tokens = logits[:, -1].argmax(dim=-1)  # (B,)
+            next_tokens = torch.where(finished, pad_id, next_tokens)
+            ids = torch.cat([ids, next_tokens.unsqueeze(1)], dim=1)
+            finished = finished | (next_tokens == eos_id)
+            if finished.all():
+                break
+
+        # Extract generated tokens per sequence (after prompt, before/at eos).
+        results: list[list[int]] = []
+        for i in range(batch_size):
+            gen_ids = ids[i, gen_start:].tolist()
+            out: list[int] = []
+            for tok_id in gen_ids:
+                if tok_id == eos_id:
+                    break
+                if tok_id == pad_id:
+                    break
+                out.append(tok_id)
+            results.append(out)
+        return results
 
 
 def build_model(cfg: TinyTransformerConfig) -> TinyTransformer:

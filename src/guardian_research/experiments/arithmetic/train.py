@@ -58,18 +58,32 @@ def _eval_loss(model: TinyTransformer, loader: DataLoader, device: str, max_batc
 
 
 @torch.no_grad()
-def _eval_accuracy(model, dataset, tok, n: int, max_new: int) -> float:
-    """Exact-match accuracy via greedy autoregressive decoding."""
+def _eval_accuracy(model, dataset, tok, n: int, max_new: int, batch_size: int = 128) -> float:
+    """Exact-match accuracy via batched greedy autoregressive decoding."""
     model.eval()
     n = min(n, len(dataset))
-    correct = 0
+    if n == 0:
+        return 0.0
+
+    # Collect all prompts and answers upfront.
+    prompts: list[list[int]] = []
+    answers: list[str] = []
     for idx in range(n):
-        prompt, answer = dataset.text(idx)
-        prompt_ids = torch.tensor([tok.bos_id] + tok.encode(prompt), dtype=torch.long)
-        gen = model.generate_greedy(prompt_ids, max_new_tokens=max_new, eos_id=tok.eos_id)
-        if tok.decode(gen) == answer:
-            correct += 1
-    return correct / max(1, n)
+        prompt_str, answer_str = dataset.text(idx)
+        prompts.append([tok.bos_id] + tok.encode(prompt_str))
+        answers.append(answer_str)
+
+    correct = 0
+    for start in range(0, n, batch_size):
+        batch_prompts = prompts[start : start + batch_size]
+        batch_answers = answers[start : start + batch_size]
+        gen_batch = model.generate_greedy_batch(
+            batch_prompts, max_new_tokens=max_new, eos_id=tok.eos_id, pad_id=tok.pad_id
+        )
+        for gen, answer in zip(gen_batch, batch_answers, strict=True):
+            if tok.decode(gen) == answer:
+                correct += 1
+    return correct / n
 
 
 def _grad_norm(model: torch.nn.Module) -> float:
