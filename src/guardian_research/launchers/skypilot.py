@@ -100,23 +100,23 @@ setup: |
   curl -LsSf https://astral.sh/uv/install.sh | sh
   export PATH="$HOME/.local/bin:$PATH"
   uv sync
-  # Reinstall PyTorch with CUDA support (default PyPI wheel is CPU-only).
-  if command -v nvidia-smi &>/dev/null; then
-    uv pip install torch --index-url https://download.pytorch.org/whl/cu121 --reinstall
-  fi
   # GCS auth: if a service account key is mounted, activate it.
   if [ -f /gcs_key.json ]; then
     gcloud auth activate-service-account --key-file=/gcs_key.json 2>/dev/null || true
   fi
+  # Verify GPU access (PyPI torch 2.x bundles CUDA runtime; just needs the driver).
+  TORCH_LIB=$(uv run python -c "import torch; print(torch.__path__[0] + '/lib')" 2>/dev/null)
+  export LD_LIBRARY_PATH="${{TORCH_LIB:-}}:/usr/lib/x86_64-linux-gnu:/usr/local/cuda/lib64:${{LD_LIBRARY_PATH:-}}"
+  uv run python -c "import torch; assert torch.cuda.is_available(), 'CUDA not found!'; print(f'GPU OK: {{torch.cuda.get_device_name(0)}}')"
 
 run: |
   set -euo pipefail
   cd repo
   export PATH="$HOME/.local/bin:$PATH"
   export GUARDIAN_REPO_ROOT="$PWD"
-  # Prefer torch's bundled NCCL/CUDA libs over system versions (fixes ncclCommResume mismatch).
+  # Ensure NVIDIA driver + torch's bundled CUDA libs are on the path.
   TORCH_LIB=$(uv run python -c "import torch; print(torch.__path__[0] + '/lib')" 2>/dev/null)
-  export LD_LIBRARY_PATH="${{TORCH_LIB:-}}:${{LD_LIBRARY_PATH:-}}"
+  export LD_LIBRARY_PATH="${{TORCH_LIB:-}}:/usr/lib/x86_64-linux-gnu:/usr/local/cuda/lib64:${{LD_LIBRARY_PATH:-}}"
 {run_block}
   # Upload results home, else they die with the worker. Per-SHA prefix so the
   # control plane can `ga collect --from $GUARDIAN_ARTIFACT_URI --sha $GIT_SHA`.
