@@ -114,6 +114,9 @@ run: |
   cd repo
   export PATH="$HOME/.local/bin:$PATH"
   export GUARDIAN_REPO_ROOT="$PWD"
+  # Prefer torch's bundled NCCL/CUDA libs over system versions (fixes ncclCommResume mismatch).
+  TORCH_LIB=$(uv run python -c "import torch; print(torch.__path__[0] + '/lib')" 2>/dev/null)
+  export LD_LIBRARY_PATH="${{TORCH_LIB:-}}:${{LD_LIBRARY_PATH:-}}"
 {run_block}
   # Upload results home, else they die with the worker. Per-SHA prefix so the
   # control plane can `ga collect --from $GUARDIAN_ARTIFACT_URI --sha $GIT_SHA`.
