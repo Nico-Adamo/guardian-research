@@ -27,7 +27,7 @@ from ..common.env_info import current_sha, git_info
 from ..common.hydra_utils import compose_config, split_overrides, to_container
 from ..common.logging import console
 from ..common.paths import runs_dir
-from ..launchers.skypilot import LaunchSpec, dry_run_text, render_task_yaml
+from ..launchers.skypilot import LaunchSpec, dry_run_text, render_shard_yamls
 
 NAME = "launch"
 HELP = "Dry-run (default-safe) or gated real cloud launch: --dry-run [--proposal P | +exp=... sweep=...]"
@@ -180,7 +180,7 @@ def run(argv: list[str]) -> int:
 def _maybe_submit(spec: LaunchSpec) -> int:
     import os
 
-    yaml_text = render_task_yaml(spec)
+    shards = render_shard_yamls(spec)
     allow = os.environ.get("GUARDIAN_ALLOW_REAL_LAUNCH") == "1"
     try:
         import sky  # noqa: F401
@@ -194,18 +194,32 @@ def _maybe_submit(spec: LaunchSpec) -> int:
         console.print("Gates passed. To submit, install the cloud extra and opt in explicitly:")
         console.print("  [bold]uv sync --extra cloud[/bold]")
         console.print("  [bold]GUARDIAN_ALLOW_REAL_LAUNCH=1 ga launch --yes ...[/bold]")
-        console.print("\n--- task YAML (write to sky_task.yaml, then `sky launch -y sky_task.yaml`) ---")
-        console.print(yaml_text)
+        console.print(f"\n--- {len(shards)} task YAML(s) would be submitted in parallel ---")
+        console.print(f"--- showing first shard ({shards[0][0]}): ---")
+        console.print(shards[0][1])
+        if len(shards) > 1:
+            console.print(f"  ... +{len(shards) - 1} more shards (one VM each, parallel)")
         return 0
 
     import subprocess
     import tempfile
 
-    with tempfile.NamedTemporaryFile("w", suffix=".yaml", delete=False) as f:
-        f.write(yaml_text)
-        path = f.name
-    console.print(f"[bold]submitting:[/bold] sky launch -y {path}")
-    return subprocess.call(["sky", "launch", "-y", path])
+    console.print(f"[bold]submitting {len(shards)} parallel tasks...[/bold]")
+    failed = 0
+    for name, yaml_text in shards:
+        with tempfile.NamedTemporaryFile("w", suffix=".yaml", prefix=f"{name}-", delete=False) as f:
+            f.write(yaml_text)
+            path = f.name
+        console.print(f"  → sky launch -y -d {path}  [dim]({name})[/dim]")
+        rc = subprocess.call(["sky", "launch", "-y", "-d", path])
+        if rc != 0:
+            console.print(f"  [red]✗ {name} failed (exit {rc})[/red]")
+            failed += 1
+    if failed:
+        console.print(f"[red]{failed}/{len(shards)} submissions failed.[/red]")
+        return 1
+    console.print(f"[green]✓ all {len(shards)} tasks submitted.[/green]")
+    return 0
 
 
 def _print_report(report) -> None:
